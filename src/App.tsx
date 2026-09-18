@@ -270,13 +270,14 @@ export default function App() {
         );
         setElapsed(0);
         setRecording(true);
+        if (hideOnCapture) await window.api.minimizeWindow();
         const base = region ? 'Recording a region of the screen.' : 'Recording the whole screen.';
         setStatus(warnings.length > 0 ? `${base} ${warnings.join(' ')}` : base);
       } catch (err) {
         setStatus(`Could not start recording: ${String(err)}`);
       }
     },
-    [source, recording, quality, audioSource, videoFormat],
+    [source, recording, quality, audioSource, videoFormat, hideOnCapture],
   );
 
   const stopRecording = useCallback(async () => {

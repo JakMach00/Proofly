@@ -54,6 +54,10 @@ in Word and VS Code. And Ctrl+Alt is what AltGr sends on Polish, German and othe
 layouts, so Ctrl+Alt+S would fire every time the user types a Polish "s with acute". The
 settings dialog flags both problems if you rebind to such a combination anyway.
 
+With "Hide ScreenApp while capturing" enabled, starting a recording minimizes the window so it
+does not end up in the material. That matters most for region recording, where selecting the
+area needs a visible window first.
+
 A capture triggered by a shortcut never brings the window to the front. If the window was
 minimized it stays minimized, and if it was visible it comes back unfocused, so the application
 you were actually working in keeps the keyboard. Region capture is the exception: it restores

@@ -138,6 +138,7 @@ export interface ScreenAppApi {
   setLoopbackAudio: (enabled: boolean) => Promise<boolean>;
   hideWindow: (displayId?: string) => Promise<boolean>;
   showWindow: (force?: boolean) => Promise<boolean>;
+  minimizeWindow: () => Promise<boolean>;
   applyShortcuts: (bindings: ShortcutMap) => Promise<ShortcutResult>;
   suspendShortcuts: () => Promise<boolean>;
   resumeShortcuts: () => Promise<ShortcutResult>;

@@ -215,6 +215,8 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
     oy: number;
   } | null>(null);
   const textEditRef = useRef<string | null>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
+  const focusTextRef = useRef(false);
 
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [history, setHistory] = useState<Snapshot[]>([]);
@@ -456,6 +458,9 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
       };
       setAnnotations((prev) => [...prev, a]);
       setSelectedId(a.id);
+      // Placing a text box hands the keyboard straight to it, so there is no
+      // detour through the content field.
+      focusTextRef.current = true;
       dragRef.current = { mode: 'move', id: a.id, ox: p.x, oy: p.y };
       return;
     }
@@ -685,9 +690,22 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
     return () => window.removeEventListener('keydown', onKey);
   }, [pendingNav, requestLeave, removeSelected, undo, save]);
 
+  useEffect(() => {
+    if (!focusTextRef.current) return;
+    const area = textAreaRef.current;
+    if (!area) return;
+    focusTextRef.current = false;
+    area.focus();
+    area.select();
+  }, [selectedId, annotations]);
+
   const stepFieldValue = selected && selected.type === 'step' ? selected.n : nextStep;
   const textActive = tool === 'text' || (selected !== null && selected.type === 'text');
-  const widthActive = !(tool === 'redact' || (selected !== null && selected.type === 'redact'));
+  const stepActive = tool === 'step' || (selected !== null && selected.type === 'step');
+  // Redaction and highlighting are filled blocks, so a stroke width means
+  // nothing for either of them.
+  const solidTool = (id: ToolId | undefined) => id === 'redact' || id === 'highlight';
+  const widthActive = !solidTool(tool) && !solidTool(selected?.type as ToolId | undefined);
 
   return (
     <div className="modal">
@@ -759,17 +777,19 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
             />
           </label>
         ) : (
-          <span className="inline">Redaction is a solid block</span>
+          <span className="inline">Solid fill, no thickness</span>
         )}
-        <label className="inline">
-          {selected && selected.type === 'step' ? 'Step number' : 'Next step number'}
-          <input
-            type="number"
-            min={1}
-            value={stepFieldValue}
-            onChange={(e) => applyStepNumber(Number(e.target.value))}
-          />
-        </label>
+        {stepActive ? (
+          <label className="inline">
+            {selected && selected.type === 'step' ? 'Step number' : 'Next step number'}
+            <input
+              type="number"
+              min={1}
+              value={stepFieldValue}
+              onChange={(e) => applyStepNumber(Number(e.target.value))}
+            />
+          </label>
+        ) : null}
         {textActive ? (
           <>
             <span className="sep" />
@@ -811,9 +831,10 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
           <label className="inline grow">
             Content
             <textarea
-              rows={2}
+              ref={textAreaRef}
+              rows={Math.min(6, Math.max(1, selected.text.split('\n').length))}
               value={selected.text}
-              placeholder="Enter adds a new line"
+              placeholder="Type here, Enter adds a new line"
               onChange={(e) => {
                 const value = e.target.value;
                 updateSelected(

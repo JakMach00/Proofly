@@ -208,6 +208,13 @@ ipcMain.handle('window:hide', async (_event, displayId) => {
   return true;
 });
 
+ipcMain.handle('window:minimize', async () => {
+  if (!win) return false;
+  hiddenByCapture = false;
+  win.minimize();
+  return true;
+});
+
 ipcMain.handle('window:show', async (_event, force) => {
   if (!win) return false;
   if (!force && !hiddenByCapture) return false;

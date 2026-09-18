@@ -1021,8 +1021,9 @@ textarea {
   padding: 7px 9px;
   font: inherit;
   font-size: 13px;
-  resize: vertical;
-  min-height: 46px;
+  /* The box grows with its content, so there is no handle to drag. */
+  resize: none;
+  line-height: 1.4;
 }
 
 .editor-tools .inline.grow textarea {

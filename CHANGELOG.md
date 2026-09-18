@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.8.1
+
+- Highlighting no longer offers a thickness, for the same reason redaction does not: both are
+  solid fills.
+- The step number field only appears while the step tool or a step is selected.
+- Placing a text box hands the keyboard to it straight away, so typing starts without clicking
+  into the content field first. The box grows with the text and can no longer be dragged to a
+  size by hand.
+- Starting a recording with "Hide ScreenApp while capturing" enabled minimizes the window, so it
+  stays out of the recording after the region picker brought it back into view.
+
 ## 1.8.0
 
 ### Editor
@@ -37,6 +48,17 @@
 - The Capture full screen button in the sidebar is no longer filled with the accent colour. A
   filled button among a stack of plain ones reads as a selected state rather than as emphasis.
   The accent now marks only the export action and the call to action in the empty workspace.
+
+## 1.8.1
+
+- Highlighting no longer offers a thickness, for the same reason redaction does not: both are
+  solid fills.
+- The step number field only appears while the step tool or a step is selected.
+- Placing a text box hands the keyboard to it straight away, so typing starts without clicking
+  into the content field first. The box grows with the text and can no longer be dragged to a
+  size by hand.
+- Starting a recording with "Hide ScreenApp while capturing" enabled minimizes the window, so it
+  stays out of the recording after the region picker brought it back into view.
 
 ## 1.8.0
 
