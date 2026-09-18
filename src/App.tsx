@@ -100,6 +100,7 @@ export default function App() {
   const [failedShortcuts, setFailedShortcuts] = useState<string[]>([]);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [trash, setTrash] = useState<{ shot: Shot; index: number }[]>([]);
   const [theme, setTheme] = useState<Theme>(() =>
     loadSetting<Theme>('theme', window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'),
   );
@@ -338,22 +339,52 @@ export default function App() {
     [shots, images],
   );
 
-  const deleteShot = useCallback((id: string) => {
-    setShots((prev) => {
-      const target = prev.find((s) => s.id === id);
-      if (target) URL.revokeObjectURL(target.url);
-      return prev.filter((s) => s.id !== id);
+  /** Frees whatever is in the trash. Called when the trash is replaced. */
+  const dropTrash = useCallback(() => {
+    setTrash((prev) => {
+      prev.forEach((entry) => URL.revokeObjectURL(entry.shot.url));
+      return [];
     });
   }, []);
 
-  const deleteAll = useCallback(() => {
+  // A deletion is recoverable: the material waits in a one step trash instead
+  // of being freed straight away.
+  const deleteShot = useCallback(
+    (id: string) => {
+      dropTrash();
+      setShots((prev) => {
+        const index = prev.findIndex((s) => s.id === id);
+        if (index < 0) return prev;
+        setTrash([{ shot: prev[index], index }]);
+        return prev.filter((s) => s.id !== id);
+      });
+      setStatus('Deleted. Ctrl+Z restores it.');
+    },
+    [dropTrash],
+  );
+
+  const restoreTrash = useCallback(() => {
+    if (trash.length === 0) return;
     setShots((prev) => {
-      prev.forEach((s) => URL.revokeObjectURL(s.url));
+      const next = [...prev];
+      [...trash]
+        .sort((a, b) => a.index - b.index)
+        .forEach((entry) => next.splice(Math.min(entry.index, next.length), 0, entry.shot));
+      return next;
+    });
+    setTrash([]);
+    setStatus('Restored.');
+  }, [trash]);
+
+  const deleteAll = useCallback(() => {
+    dropTrash();
+    setShots((prev) => {
+      setTrash(prev.map((shot, index) => ({ shot, index })));
       return [];
     });
     setConfirmClear(false);
-    setStatus('Session cleared.');
-  }, []);
+    setStatus('Session cleared. Ctrl+Z restores it.');
+  }, [dropTrash]);
 
   const saveEdited = useCallback(
     (shotId: string, blob: Blob, thumbUrl: string) => {
@@ -459,6 +490,7 @@ export default function App() {
       setLastDir(result.dir);
       setStatus(`Saved ${result.videoPaths.length} recording(s) to ${result.dir}.`);
       if (clearAfterExport) {
+        dropTrash();
         setShots((prev) => {
           const remaining = prev.filter((s) => s.kind !== 'video');
           prev.filter((s) => s.kind === 'video').forEach((s) => URL.revokeObjectURL(s.url));
@@ -470,7 +502,7 @@ export default function App() {
     } finally {
       setBusy(false);
     }
-  }, [shots, collectVideos, useSaveDir, saveDir, clearAfterExport]);
+  }, [shots, collectVideos, useSaveDir, saveDir, clearAfterExport, dropTrash]);
 
   const exportAll = useCallback(async () => {
     if (shots.length === 0) {
@@ -509,6 +541,7 @@ export default function App() {
             : ''),
       );
       if (clearAfterExport) {
+        dropTrash();
         setShots((prev) => {
           prev.forEach((s) => URL.revokeObjectURL(s.url));
           return [];
@@ -519,7 +552,16 @@ export default function App() {
     } finally {
       setBusy(false);
     }
-  }, [shots, images, collectVideos, compressPdf, clearAfterExport, useSaveDir, saveDir]);
+  }, [
+    shots,
+    images,
+    collectVideos,
+    compressPdf,
+    clearAfterExport,
+    useSaveDir,
+    saveDir,
+    dropTrash,
+  ]);
 
   useEffect(() => {
     saveSetting('shortcuts.v2', shortcuts);
@@ -535,6 +577,20 @@ export default function App() {
       })
       .catch((err: unknown) => setStatus(`Could not register the shortcuts: ${String(err)}`));
   }, [shortcuts]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (frozen || editorPos !== null || playing || showShortcuts || confirmClear) return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+      if (event.ctrlKey && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        restoreTrash();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [frozen, editorPos, playing, showShortcuts, confirmClear, restoreTrash]);
 
   useEffect(() => {
     const off = window.api.onShortcut((action) => {
@@ -937,6 +993,11 @@ export default function App() {
       <footer className={busy ? 'statusbar busy' : 'statusbar'}>
         <span className={recording ? 'state-dot recording' : 'state-dot'} />
         <span className="status-text">{status}</span>
+        {trash.length > 0 ? (
+          <button className="link" onClick={restoreTrash}>
+            Undo delete
+          </button>
+        ) : null}
         <span className="version">v{__APP_VERSION__}</span>
       </footer>
 

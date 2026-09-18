@@ -1,4 +1,5 @@
 import type { AudioSource, Rect, VideoFormat } from '../types';
+import { withDuration } from './duration';
 import {
   getDisplayStream,
   getMicrophoneTrack,
@@ -220,8 +221,11 @@ export class ScreenRecorder {
     });
 
     const durationMs = performance.now() - this.startedAt;
+    // MediaRecorder writes no overall duration, which leaves players showing a
+    // nonsense length and makes seeking and trimming unusable.
+    const fixed = await withDuration(blob, durationMs, this.ext);
     const result: RecordResult = {
-      blob,
+      blob: fixed,
       width: this.outWidth,
       height: this.outHeight,
       durationMs,

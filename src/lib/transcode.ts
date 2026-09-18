@@ -1,8 +1,9 @@
 import { makeThumb } from './capture';
+import { withDuration } from './duration';
 import { extForMimeType, pickMimeType } from './recorder';
 import type { VideoFormat } from '../types';
 
-export interface SpeedResult {
+export interface ProcessResult {
   blob: Blob;
   width: number;
   height: number;
@@ -11,11 +12,17 @@ export interface SpeedResult {
   ext: string;
 }
 
-export interface SpeedOptions {
+export interface ProcessOptions {
   /** Frames per second of the produced file. */
   fps: number;
   /** Target bitrate in bits per second. */
   bitrate: number;
+  /** Playback speed, 1 leaves the pace unchanged. */
+  speed: number;
+  /** Trim start in seconds. */
+  startSec: number;
+  /** Trim end in seconds, null runs to the end of the clip. */
+  endSec: number | null;
   /** Whether the source carries an audio track that has to survive. */
   hasAudio?: boolean;
   /** Container to write, normally the one the source already uses. */
@@ -28,16 +35,19 @@ function even(value: number): number {
 }
 
 /**
- * Files produced by MediaRecorder often report a duration of Infinity because
- * they carry no seek index. Seeking far past the end forces the browser to
- * work the real length out.
+ * Files produced by MediaRecorder carry no seek index, so the browser reports
+ * a duration of Infinity. Seeking far past the end forces it to work the real
+ * length out, which trimming depends on.
  */
-function resolveDuration(video: HTMLVideoElement): Promise<number> {
+export function resolveDuration(video: HTMLVideoElement): Promise<number> {
   if (Number.isFinite(video.duration) && video.duration > 0) {
     return Promise.resolve(video.duration);
   }
   return new Promise((resolve) => {
+    let settled = false;
     const settle = () => {
+      if (settled) return;
+      settled = true;
       video.removeEventListener('timeupdate', settle);
       const value = video.duration;
       video.currentTime = 0;
@@ -49,20 +59,33 @@ function resolveDuration(video: HTMLVideoElement): Promise<number> {
   });
 }
 
-/**
- * Re-encodes a recording at a higher playback speed. The source is played back
- * faster into a canvas and the canvas stream is recorded, so the produced file
- * really is shorter rather than just tagged with a rate.
- */
-export async function changeSpeed(
-  source: Blob,
-  factor: number,
-  options: SpeedOptions,
-  onProgress?: (ratio: number) => void,
-): Promise<SpeedResult> {
-  const withAudio = options.hasAudio === true;
-  if (factor <= 1) throw new Error('Speed must be greater than 1.');
+function seek(video: HTMLVideoElement, time: number): Promise<void> {
+  return new Promise((resolve) => {
+    if (Math.abs(video.currentTime - time) < 0.02) {
+      resolve();
+      return;
+    }
+    const done = () => {
+      video.removeEventListener('seeked', done);
+      resolve();
+    };
+    video.addEventListener('seeked', done);
+    video.currentTime = time;
+    window.setTimeout(done, 2500);
+  });
+}
 
+/**
+ * Re-encodes a recording with a new speed, a trimmed range, or both. The source
+ * is played into a canvas and the canvas stream is recorded, so the produced
+ * file really is shorter rather than carrying a playback hint.
+ */
+export async function processVideo(
+  source: Blob,
+  options: ProcessOptions,
+  onProgress?: (ratio: number) => void,
+): Promise<ProcessResult> {
+  const withAudio = options.hasAudio === true;
   const url = URL.createObjectURL(source);
   const video = document.createElement('video');
   video.src = url;
@@ -83,21 +106,19 @@ export async function changeSpeed(
     });
 
     const duration = await resolveDuration(video);
+    const start = Math.max(0, options.startSec);
+    const end = options.endSec !== null ? Math.min(options.endSec, duration || options.endSec) : duration;
+    const span = Math.max(0.1, (end || duration) - start);
+
     const width = even(video.videoWidth);
     const height = even(video.videoHeight);
-
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) throw new Error('No 2D context available for the conversion.');
 
-    video.currentTime = 0;
-    await new Promise<void>((resolve) => {
-      if (video.readyState >= 2) resolve();
-      else video.oncanplay = () => resolve();
-    });
-
+    await seek(video, start);
     ctx.drawImage(video, 0, 0, width, height);
     const thumbUrl = makeThumb(canvas);
 
@@ -132,28 +153,34 @@ export async function changeSpeed(
       recorder.onstop = () => resolve(new Blob(chunks, { type: recorder.mimeType }));
     });
 
+    let reachedEnd = false;
     const draw = () => {
       ctx.drawImage(video, 0, 0, width, height);
-      if (onProgress && duration > 0) {
-        onProgress(Math.min(1, video.currentTime / duration));
-      }
+      if (onProgress) onProgress(Math.min(1, Math.max(0, (video.currentTime - start) / span)));
+      if (options.endSec !== null && video.currentTime >= end) reachedEnd = true;
     };
 
     recorder.start(500);
-    video.playbackRate = factor;
-    const started = performance.now();
+    video.playbackRate = options.speed;
     timer = window.setInterval(draw, Math.max(20, Math.round(1000 / options.fps)));
 
     // The guard keeps a damaged file from hanging the conversion forever.
-    const guardMs = duration > 0 ? (duration / factor) * 1000 + 15000 : 600000;
+    const guardMs = (span / options.speed) * 1000 + 15000;
     await Promise.race([
       new Promise<void>((resolve) => {
         video.onended = () => resolve();
+        const poll = window.setInterval(() => {
+          if (reachedEnd) {
+            window.clearInterval(poll);
+            resolve();
+          }
+        }, 60);
         void video.play();
       }),
       new Promise<void>((resolve) => window.setTimeout(resolve, guardMs)),
     ]);
 
+    video.pause();
     window.clearInterval(timer);
     timer = 0;
     draw();
@@ -161,17 +188,13 @@ export async function changeSpeed(
     await new Promise((resolve) => window.setTimeout(resolve, 150));
     recorder.stop();
 
-    const blob = await finished;
+    const raw = await finished;
+    const ext = extForMimeType(mimeType);
+    const durationMs = Math.round((span / options.speed) * 1000);
+    const blob = await withDuration(raw, durationMs, ext);
     if (onProgress) onProgress(1);
 
-    return {
-      blob,
-      width,
-      height,
-      durationMs: performance.now() - started,
-      thumbUrl,
-      ext: extForMimeType(mimeType),
-    };
+    return { blob, width, height, durationMs, thumbUrl, ext };
   } finally {
     if (timer) window.clearInterval(timer);
     if (audioContext) void audioContext.close();
@@ -183,8 +206,15 @@ export async function changeSpeed(
   }
 }
 
-/** Keeps one speed marker in the file name instead of stacking them up. */
-export function speedName(name: string, factor: number, ext: string): string {
-  const base = name.replace(/\.(webm|mp4)$/i, '').replace(/_[\d.]+x$/i, '');
-  return `${base}_${String(factor).replace(/\.0$/, '')}x.${ext}`;
+/** Keeps one marker in the file name instead of stacking them up. */
+export function outputName(
+  name: string,
+  ext: string,
+  parts: { speed: number; trimmed: boolean },
+): string {
+  const base = name.replace(/\.(webm|mp4)$/i, '').replace(/_(\d+(\.\d+)?x|trim)(_(\d+(\.\d+)?x|trim))?$/i, '');
+  const marks: string[] = [];
+  if (parts.trimmed) marks.push('trim');
+  if (parts.speed > 1) marks.push(`${String(parts.speed).replace(/\.0$/, '')}x`);
+  return `${base}${marks.length ? `_${marks.join('_')}` : ''}.${ext}`;
 }

@@ -1012,3 +1012,19 @@ progress {
     grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
   }
 }
+
+textarea {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 9px;
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+  min-height: 46px;
+}
+
+.editor-tools .inline.grow textarea {
+  flex: 1;
+}

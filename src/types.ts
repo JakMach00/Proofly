@@ -44,7 +44,8 @@ export type ToolId =
   | 'step'
   | 'text'
   | 'highlight'
-  | 'redact';
+  | 'redact'
+  | 'crop';
 
 export type ShapeType = 'arrow' | 'rect' | 'ellipse' | 'highlight' | 'redact';
 
@@ -77,8 +78,11 @@ export interface TextAnnotation {
   width: number;
   x: number;
   y: number;
+  /** May contain newlines. */
   text: string;
   size: number;
+  font: string;
+  outline: boolean;
 }
 
 export type Annotation = ShapeAnnotation | StepAnnotation | TextAnnotation;

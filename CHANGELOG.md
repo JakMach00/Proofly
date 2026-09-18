@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.8.0
+
+### Editor
+
+- Undo is a real history now. It steps back through deletions, moves, property changes and
+  crops, instead of only removing the most recently drawn annotation.
+- Text is far more flexible: Enter starts a new line, the size is its own control rather than
+  being tied to thickness, the outline is an optional checkbox, and there are five fonts.
+- Screenshots can be cropped. Annotations are held in the coordinates of the original image, so
+  a crop never moves them, and "Reset crop" brings the full frame back.
+- Recordings can be trimmed. Set the start and the end from the playback position, and apply it
+  together with a speed change in one pass.
+- Redaction no longer offers a thickness, because it is a solid block that covers something.
+- Leaving the highlighter returns the colour to red instead of keeping yellow.
+
+### Elsewhere
+
+- Deleting a screenshot or a recording can be undone with Ctrl+Z or the action in the status
+  bar, including Delete all.
+- Fixed the nonsense length, such as 21452:24:56, that files carried after recording or editing.
+  MediaRecorder writes no overall duration, so WebM now gets the missing metadata section and
+  MP4 gets the duration written into its header boxes. Without this, seeking and trimming were
+  unusable.
+
 ## 1.7.2
 
 - No sidebar action is styled as preselected any more. The accent is left to the export button
@@ -13,6 +37,30 @@
 - The Capture full screen button in the sidebar is no longer filled with the accent colour. A
   filled button among a stack of plain ones reads as a selected state rather than as emphasis.
   The accent now marks only the export action and the call to action in the empty workspace.
+
+## 1.8.0
+
+### Editor
+
+- Undo is a real history now. It steps back through deletions, moves, property changes and
+  crops, instead of only removing the most recently drawn annotation.
+- Text is far more flexible: Enter starts a new line, the size is its own control rather than
+  being tied to thickness, the outline is an optional checkbox, and there are five fonts.
+- Screenshots can be cropped. Annotations are held in the coordinates of the original image, so
+  a crop never moves them, and "Reset crop" brings the full frame back.
+- Recordings can be trimmed. Set the start and the end from the playback position, and apply it
+  together with a speed change in one pass.
+- Redaction no longer offers a thickness, because it is a solid block that covers something.
+- Leaving the highlighter returns the colour to red instead of keeping yellow.
+
+### Elsewhere
+
+- Deleting a screenshot or a recording can be undone with Ctrl+Z or the action in the status
+  bar, including Delete all.
+- Fixed the nonsense length, such as 21452:24:56, that files carried after recording or editing.
+  MediaRecorder writes no overall duration, so WebM now gets the missing metadata section and
+  MP4 gets the duration written into its header boxes. Without this, seeking and trimming were
+  unusable.
 
 ## 1.7.2
 

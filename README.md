@@ -37,6 +37,12 @@ ends of an arrow, the four corners of a box, an ellipse, a highlight or a redact
 handle reshapes it, dragging the body moves it, and the colour, thickness, step number and text
 controls change the selected item live instead of only affecting the next one.
 
+Undo keeps a real history, so it steps back through deletions, moves, property changes and
+crops, not just the last shape drawn. Text takes multiple lines, has its own size control, an
+optional outline and a choice of fonts. The Crop tool trims the screenshot itself, and since
+annotations are stored in the coordinates of the original image, cropping never moves them and
+"Reset crop" restores the full frame.
+
 Clicking an existing step or text label while the same tool is active picks it up rather than
 stacking a new one on top of it. Undoing or deleting the most recent step hands its number back,
 so the sequence continues from the right place. The highlighter starts yellow. Leaving a
@@ -128,6 +134,14 @@ the status bar instead of failing.
 The trade-off is size. H.264 needs roughly 30 to 50 percent more bitrate than VP9 for the same
 image, so WebM stays available for material that is only ever watched inside a browser. The
 speed conversion keeps whatever container the clip already uses.
+
+## Duration metadata
+
+MediaRecorder writes no overall duration into the files it produces. Players then show a length
+such as 21452:24:56, seeking does not work and trimming is impossible. Every file this
+application writes is repaired before it is handed on: WebM gets the missing metadata section
+appended, and for MP4 the duration is written into the mvhd, tkhd and mdhd boxes. A fragmented
+MP4 with no moov is left alone rather than being corrupted by a guess.
 
 ## Audio
 

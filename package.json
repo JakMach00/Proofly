@@ -1,8 +1,8 @@
 {
   "name": "screenapp",
   "productName": "ScreenApp",
-  "version": "1.7.2",
-  "description": "Screen capture, annotation and PDF documentation tool",
+  "version": "1.8.0",
+  "description": "ScreenApp",
   "main": "electron/main.js",
   "author": "Jakub",
   "license": "MIT",
@@ -14,6 +14,7 @@
     "start": "npm run build && electron ."
   },
   "dependencies": {
+    "fix-webm-duration": "^1.0.6",
     "jspdf": "^2.5.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
