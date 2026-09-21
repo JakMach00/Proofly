@@ -3,6 +3,9 @@
 const {
   app,
   BrowserWindow,
+  Menu,
+  Tray,
+  clipboard,
   ipcMain,
   desktopCapturer,
   globalShortcut,
@@ -21,6 +24,22 @@ const DEV_URL = 'http://localhost:5173';
 
 /** @type {BrowserWindow | null} */
 let win = null;
+
+/** @type {Tray | null} */
+let tray = null;
+
+/** @type {BrowserWindow | null} */
+let overlay = null;
+
+/** Set on a real quit, so closing the window can hide it to the tray instead. */
+let isQuitting = false;
+
+/** The "still running" notice is shown once per session, not on every close. */
+let trayNoticeShown = false;
+
+/** Launched by Windows at sign in, which should stay out of sight. */
+const startHidden = process.argv.includes('--hidden');
+const ICON_PATH = path.join(__dirname, '..', 'build', 'icon.ico');
 
 /** Source the renderer wants when it falls back to getDisplayMedia. */
 let preferredSourceId = null;
@@ -57,7 +76,34 @@ function createWindow() {
     },
   });
 
-  win.once('ready-to-show', () => win && win.show());
+  win.once('ready-to-show', () => {
+    if (win && !startHidden) win.show();
+  });
+
+  // Closing keeps the app alive in the tray, otherwise the Print Screen
+  // shortcut would stop working the moment the window is closed.
+  // The X hides the window from the taskbar and leaves the app in the tray,
+  // where Print Screen keeps working. Minimize is untouched and still sends
+  // the window to the taskbar as usual.
+  win.on('close', (event) => {
+    if (isQuitting) return;
+    event.preventDefault();
+    if (win) win.hide();
+    if (!trayNoticeShown && tray && process.platform === 'win32') {
+      trayNoticeShown = true;
+      tray.displayBalloon({
+        iconType: 'info',
+        title: 'Still running in the tray',
+        content: 'Print Screen keeps working. Quit from the tray icon menu.',
+      });
+    }
+  });
+
+  // Signing out or shutting down must not be held up by the hide-to-tray
+  // behaviour above.
+  win.on('session-end', () => {
+    isQuitting = true;
+  });
 
   if (isDev) {
     win.loadURL(DEV_URL);
@@ -70,10 +116,58 @@ function createWindow() {
   });
 }
 
+function showMainWindow() {
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
+function createTray() {
+  if (tray) return;
+  tray = new Tray(ICON_PATH);
+  tray.setToolTip('ScreenApp');
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Open ScreenApp', click: showMainWindow },
+      {
+        label: 'Capture a region',
+        click: () => {
+          if (win && !win.isDestroyed()) win.webContents.send('shortcut:trigger', 'region');
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'Quit',
+        click: () => {
+          isQuitting = true;
+          app.quit();
+        },
+      },
+    ]),
+  );
+  tray.on('double-click', showMainWindow);
+}
+
+// A second launch, for example from the Start menu while the app already
+// sits in the tray, brings the running window forward instead of competing
+// with it for the global shortcuts.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', showMainWindow);
+}
+
+app.on('before-quit', () => {
+  isQuitting = true;
+});
+
 app.whenReady().then(() => {
   // Without an explicit model id Windows groups the process as generic Node and
   // shows its own icon on the taskbar.
-  app.setAppUserModelId('pl.jakub.screenapp');
+  // Windows shows this identifier as the sender of notifications when the app
+  // has no Start menu shortcut, which is the case for the zip build.
+  app.setAppUserModelId('ScreenApp');
 
   // Fallback path: if the legacy getUserMedia constraints ever stop working,
   // the renderer can use getDisplayMedia and this handler picks the screen
@@ -112,6 +206,7 @@ app.whenReady().then(() => {
   screen.on('display-removed', notifyDisplays);
 
   createWindow();
+  createTray();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -426,6 +521,143 @@ ipcMain.handle('update:open', async (_event, url) => {
     typeof url === 'string' && url.startsWith(`https://github.com/${REPO}`) ? url : fallback;
   await shell.openExternal(safe);
   return true;
+});
+
+/**
+ * Freezes one display and lets the user drag a rectangle across it, the way
+ * Snipping Tool does. Resolves with the frozen image and the physical pixel
+ * rectangle, or null when cancelled.
+ */
+async function selectRegion(displayId) {
+  if (overlay) return null;
+  const displays = screen.getAllDisplays();
+  const display = displayId
+    ? displays.find((d) => String(d.id) === String(displayId)) || screen.getPrimaryDisplay()
+    : screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+
+  const width = Math.round(display.size.width * display.scaleFactor);
+  const height = Math.round(display.size.height * display.scaleFactor);
+  const sources = await desktopCapturer.getSources({
+    types: ['screen'],
+    thumbnailSize: { width, height },
+  });
+  const order = displays.findIndex((d) => d.id === display.id);
+  const source =
+    sources.find((s) => String(s.display_id) === String(display.id)) ||
+    sources[order] ||
+    sources[0];
+  if (!source) throw new Error('No screen found to capture.');
+  const image = source.thumbnail;
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const view = new BrowserWindow({
+      x: display.bounds.x,
+      y: display.bounds.y,
+      width: display.bounds.width,
+      height: display.bounds.height,
+      frame: false,
+      resizable: false,
+      movable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      hasShadow: false,
+      enableLargerThanScreen: true,
+      show: false,
+      backgroundColor: '#000000',
+      webPreferences: {
+        preload: path.join(__dirname, 'overlay-preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+      },
+    });
+    overlay = view;
+    view.setAlwaysOnTop(true, 'screen-saver');
+    view.setBounds(display.bounds);
+
+    const finish = (rect) => {
+      if (settled) return;
+      settled = true;
+      ipcMain.removeListener('overlay:ready', onReady);
+      ipcMain.removeListener('overlay:done', onDone);
+      ipcMain.removeListener('overlay:cancel', onCancel);
+      overlay = null;
+      if (!view.isDestroyed()) view.destroy();
+      resolve(rect ? { rect, image, display } : null);
+    };
+    const onReady = (event) => {
+      if (event.sender !== view.webContents) return;
+      view.show();
+      view.focus();
+    };
+    const onDone = (event, rect) => {
+      if (event.sender === view.webContents) finish(rect);
+    };
+    const onCancel = (event) => {
+      if (event.sender === view.webContents) finish(null);
+    };
+
+    ipcMain.on('overlay:ready', onReady);
+    ipcMain.on('overlay:done', onDone);
+    ipcMain.on('overlay:cancel', onCancel);
+    view.on('closed', () => finish(null));
+    view.webContents.once('did-finish-load', () => {
+      view.webContents.send('overlay:image', image.toDataURL());
+    });
+    view.loadFile(path.join(__dirname, 'overlay.html'));
+  });
+}
+
+ipcMain.handle('region:select', async (_event, payload) => {
+  const { displayId, purpose } = payload || {};
+  const result = await selectRegion(displayId || null);
+  if (!result) return null;
+
+  const size = result.image.getSize();
+  const x = Math.max(0, Math.min(size.width - 1, Math.round(result.rect.x)));
+  const y = Math.max(0, Math.min(size.height - 1, Math.round(result.rect.y)));
+  const rect = {
+    x,
+    y,
+    w: Math.max(1, Math.min(size.width - x, Math.round(result.rect.w))),
+    h: Math.max(1, Math.min(size.height - y, Math.round(result.rect.h))),
+  };
+
+  if (purpose === 'record') {
+    return { rect, displayId: String(result.display.id) };
+  }
+
+  const cropped = result.image.crop({ x: rect.x, y: rect.y, width: rect.w, height: rect.h });
+  // Straight into the clipboard, so a region can be pasted anywhere at once.
+  clipboard.writeImage(cropped);
+  const croppedSize = cropped.getSize();
+  return {
+    data: cropped.toPNG(),
+    width: croppedSize.width,
+    height: croppedSize.height,
+    displayId: String(result.display.id),
+  };
+});
+
+/**
+ * Start with Windows. The login item points at the running executable, so it
+ * only makes sense for the packaged app, and moving the folder breaks it.
+ */
+const LOGIN_ARGS = ['--hidden'];
+
+ipcMain.handle('autostart:get', () => {
+  if (!app.isPackaged) return { available: false, enabled: false };
+  return { available: true, enabled: app.getLoginItemSettings({ args: LOGIN_ARGS }).openAtLogin };
+});
+
+ipcMain.handle('autostart:set', (_event, enabled) => {
+  if (!app.isPackaged) return { available: false, enabled: false };
+  app.setLoginItemSettings({ openAtLogin: Boolean(enabled), args: LOGIN_ARGS });
+  return { available: true, enabled: app.getLoginItemSettings({ args: LOGIN_ARGS }).openAtLogin };
 });
 
 ipcMain.handle('shell:reveal', async (_event, target) => {

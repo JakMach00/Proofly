@@ -34,6 +34,10 @@ contextBridge.exposeInMainWorld('api', {
     }),
   chooseFolder: () => ipcRenderer.invoke('dialog:choose-folder'),
   reveal: (filePath) => ipcRenderer.invoke('shell:reveal', filePath),
+  selectRegion: (displayId, purpose) =>
+    ipcRenderer.invoke('region:select', { displayId: displayId || null, purpose }),
+  getAutostart: () => ipcRenderer.invoke('autostart:get'),
+  setAutostart: (enabled) => ipcRenderer.invoke('autostart:set', Boolean(enabled)),
   checkUpdate: () => ipcRenderer.invoke('update:check'),
   openRelease: (url) => ipcRenderer.invoke('update:open', url),
 });

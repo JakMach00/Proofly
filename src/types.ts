@@ -117,6 +117,16 @@ export interface UpdateInfo {
   error?: string;
 }
 
+export type RegionResult =
+  | { rect: Rect; displayId: string }
+  | { data: Uint8Array; width: number; height: number; displayId: string };
+
+export interface AutostartState {
+  /** False while running from source, where a login item makes no sense. */
+  available: boolean;
+  enabled: boolean;
+}
+
 export interface RevealResult {
   ok: boolean;
   error?: string;
@@ -153,6 +163,12 @@ export interface ScreenAppApi {
   ) => Promise<ExportResult | null>;
   chooseFolder: () => Promise<string | null>;
   reveal: (filePath: string) => Promise<RevealResult>;
+  selectRegion: (
+    displayId: string | null,
+    purpose: 'shot' | 'record',
+  ) => Promise<RegionResult | null>;
+  getAutostart: () => Promise<AutostartState>;
+  setAutostart: (enabled: boolean) => Promise<AutostartState>;
   checkUpdate: () => Promise<UpdateInfo>;
   openRelease: (url: string) => Promise<boolean>;
 }

@@ -117,7 +117,9 @@ export default function ShortcutSettings({ shortcuts, failed, onChange, onClose 
           Avoid Ctrl+Alt combinations: on Polish and other international layouts AltGr sends
           Ctrl+Alt, so AltGr+S would trigger a capture while typing an accented character.
           Windows also reserves some combinations for itself, Win+Shift+S among them, and no
-          application can take those over.
+          application can take those over. Print Screen belongs to Windows as long as Settings,
+          Accessibility, Keyboard, "Use the Print screen key to open screen capture" is on, so
+          switch that off for ScreenApp to receive the key.
         </p>
         {message ? <p className="warn">{message}</p> : null}
       </div>

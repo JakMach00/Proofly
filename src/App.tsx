@@ -3,12 +3,12 @@ import Editor from './components/Editor';
 import Gallery from './components/Gallery';
 import ConfirmDialog from './components/ConfirmDialog';
 import Hint from './components/Hint';
-import RegionSelector from './components/RegionSelector';
 import VideoPlayer from './components/VideoPlayer';
 import ShortcutSettings from './components/ShortcutSettings';
 import {
   bytesToBlob,
-  cropImage,
+  loadImage,
+  makeThumb,
   formatDuration,
   grabScreenshot,
   makeShot,
@@ -16,10 +16,11 @@ import {
 } from './lib/capture';
 import { buildPdf } from './lib/pdf';
 import { ScreenRecorder } from './lib/recorder';
-import { mergeShortcuts } from './lib/shortcuts';
+import { migrateShortcuts } from './lib/shortcuts';
 import { loadSetting, saveSetting } from './lib/storage';
 import type {
   AudioSource,
+  AutostartState,
   Rect,
   ShortcutMap,
   Shot,
@@ -29,13 +30,6 @@ import type {
 } from './types';
 
 type RegionPurpose = 'shot' | 'record';
-
-interface FrozenFrame {
-  url: string;
-  width: number;
-  height: number;
-  purpose: RegionPurpose;
-}
 
 const QUALITY = {
   low: { label: 'Low (smallest file)', bitrate: 500_000, fps: 10, scale: 0.6 },
@@ -62,7 +56,6 @@ export default function App() {
   const [sources, setSources] = useState<SourceInfo[]>([]);
   const [sourceId, setSourceId] = useState<string>('');
   const [shots, setShots] = useState<Shot[]>([]);
-  const [frozen, setFrozen] = useState<FrozenFrame | null>(null);
   const [editorPos, setEditorPos] = useState<number | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
@@ -74,6 +67,7 @@ export default function App() {
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(() =>
     loadSetting<string | null>('dismissedVersion', null),
   );
+  const [autostart, setAutostart] = useState<AutostartState>({ available: false, enabled: false });
   const [checkOnStart, setCheckOnStart] = useState<boolean>(() =>
     loadSetting('checkOnStart', true),
   );
@@ -95,7 +89,10 @@ export default function App() {
   );
   const [compressPdf, setCompressPdf] = useState<boolean>(() => loadSetting('compressPdf', true));
   const [shortcuts, setShortcuts] = useState<ShortcutMap>(() =>
-    mergeShortcuts(loadSetting<Partial<ShortcutMap> | null>('shortcuts.v2', null)),
+    migrateShortcuts(
+      loadSetting<Partial<ShortcutMap> | null>('shortcuts.v3', null),
+      loadSetting<Partial<ShortcutMap> | null>('shortcuts.v2', null),
+    ),
   );
   const [failedShortcuts, setFailedShortcuts] = useState<string[]>([]);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -106,6 +103,7 @@ export default function App() {
   );
 
   const recorderRef = useRef<ScreenRecorder>(new ScreenRecorder());
+  const startRecordingRef = useRef<(region: Rect | null) => Promise<void>>(async () => undefined);
   const sourcesRef = useRef<SourceInfo[]>([]);
   const shotsRef = useRef<Shot[]>([]);
   shotsRef.current = shots;
@@ -173,6 +171,27 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [recording]);
 
+  useEffect(() => {
+    window.api
+      .getAutostart()
+      .then(setAutostart)
+      .catch(() => undefined);
+  }, []);
+
+  const toggleAutostart = useCallback(async (enabled: boolean) => {
+    try {
+      const next = await window.api.setAutostart(enabled);
+      setAutostart(next);
+      setStatus(
+        next.enabled
+          ? 'ScreenApp will start in the tray when you sign in.'
+          : 'ScreenApp will no longer start with Windows.',
+      );
+    } catch (err) {
+      setStatus(`Could not change the startup setting: ${String(err)}`);
+    }
+  }, []);
+
   const checkForUpdate = useCallback(async (manual: boolean) => {
     try {
       const result = await window.api.checkUpdate();
@@ -218,34 +237,60 @@ export default function App() {
     }
   }, [source, busy, hideOnCapture, addShot]);
 
-  /** Freezes the screen and opens the region picker. */
+  /**
+   * Selecting a region happens on the screen itself, in a frozen full screen
+   * overlay, the way Snipping Tool works. A shortcut targets the display under
+   * the pointer, a button targets the display chosen in the sidebar.
+   */
   const openRegion = useCallback(
-    async (purpose: RegionPurpose) => {
+    async (purpose: RegionPurpose, fromShortcut = false) => {
       if (!source || busy) return;
       setBusy(true);
       try {
-        if (hideOnCapture) await window.api.hideWindow(source.displayId);
-        const raw = await window.api.captureScreen(source.id, source.width, source.height);
-        // Forced: the region picker needs a visible window to draw on.
-        await window.api.showWindow(true);
-        const url = URL.createObjectURL(bytesToBlob(raw.data, 'image/png'));
-        setFrozen({ url, width: raw.width, height: raw.height, purpose });
+        if (hideOnCapture) await window.api.hideWindow(fromShortcut ? undefined : source.displayId);
+        const target = fromShortcut && purpose === 'shot' ? null : source.displayId;
+        const result = await window.api.selectRegion(target, purpose);
+        if (!result) {
+          await window.api.showWindow(false);
+          setStatus('Region selection cancelled.');
+          return;
+        }
+        if ('rect' in result) {
+          // Going straight to minimized avoids the window flashing up between
+          // the selection and the start of the recording.
+          if (hideOnCapture) await window.api.minimizeWindow();
+          else await window.api.showWindow(false);
+          setBusy(false);
+          await startRecordingRef.current(result.rect);
+          return;
+        }
+        const blob = bytesToBlob(result.data, 'image/png');
+        const url = URL.createObjectURL(blob);
+        try {
+          const img = await loadImage(url);
+          addShot(
+            makeShot({
+              kind: 'image',
+              blob,
+              width: result.width,
+              height: result.height,
+              thumbUrl: makeThumb(img),
+            }),
+          );
+        } finally {
+          URL.revokeObjectURL(url);
+        }
+        await window.api.showWindow(false);
+        setStatus(`Region ${result.width} x ${result.height} copied to the clipboard.`);
       } catch (err) {
-        await window.api.showWindow(true);
+        await window.api.showWindow(false);
         setStatus(`Capture failed: ${String(err)}`);
       } finally {
         setBusy(false);
       }
     },
-    [source, busy, hideOnCapture],
+    [source, busy, hideOnCapture, addShot],
   );
-
-  const closeFrozen = useCallback(() => {
-    setFrozen((current) => {
-      if (current) URL.revokeObjectURL(current.url);
-      return null;
-    });
-  }, []);
 
   const startRecording = useCallback(
     async (region: Rect | null) => {
@@ -280,6 +325,8 @@ export default function App() {
     [source, recording, quality, audioSource, videoFormat, hideOnCapture],
   );
 
+  startRecordingRef.current = startRecording;
+
   const stopRecording = useCallback(async () => {
     if (!recording) return;
     try {
@@ -303,28 +350,6 @@ export default function App() {
       setStatus(`Could not stop the recording: ${String(err)}`);
     }
   }, [recording, addShot]);
-
-  const handleRegionSelected = useCallback(
-    async (rect: Rect) => {
-      const current = frozen;
-      if (!current) return;
-      try {
-        if (current.purpose === 'shot') {
-          const result = await cropImage(current.url, rect);
-          addShot(makeShot({ kind: 'image', ...result }));
-          setStatus(`Region captured, ${result.width} x ${result.height}.`);
-          closeFrozen();
-        } else {
-          closeFrozen();
-          await startRecording(rect);
-        }
-      } catch (err) {
-        setStatus(`Region selection failed: ${String(err)}`);
-        closeFrozen();
-      }
-    },
-    [frozen, addShot, closeFrozen, startRecording],
-  );
 
   const openShot = useCallback(
     (index: number) => {
@@ -565,7 +590,7 @@ export default function App() {
   ]);
 
   useEffect(() => {
-    saveSetting('shortcuts.v2', shortcuts);
+    saveSetting('shortcuts.v3', shortcuts);
     window.api
       .applyShortcuts(shortcuts)
       .then((result) => {
@@ -581,7 +606,7 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (frozen || editorPos !== null || playing || showShortcuts || confirmClear) return;
+      if (editorPos !== null || playing || showShortcuts || confirmClear) return;
       const target = event.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
       if (event.ctrlKey && event.key.toLowerCase() === 'z') {
@@ -591,14 +616,14 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [frozen, editorPos, playing, showShortcuts, confirmClear, restoreTrash]);
+  }, [editorPos, playing, showShortcuts, confirmClear, restoreTrash]);
 
   useEffect(() => {
     const off = window.api.onShortcut((action) => {
       // Ignore global shortcuts while a modal owns the screen.
-      if (frozen || editorPos !== null || playing || showShortcuts) return;
+      if (editorPos !== null || playing || showShortcuts) return;
       if (action === 'capture') void captureFull();
-      else if (action === 'region') void openRegion('shot');
+      else if (action === 'region') void openRegion('shot', true);
       else if (action === 'record') {
         if (recording) void stopRecording();
         else void startRecording(null);
@@ -609,7 +634,6 @@ export default function App() {
     });
     return off;
   }, [
-    frozen,
     editorPos,
     playing,
     showShortcuts,
@@ -889,6 +913,23 @@ export default function App() {
             <button className="action" onClick={() => void checkForUpdate(true)}>
               <span>Check for updates</span>
             </button>
+            <Hint
+              text={
+                autostart.available
+                  ? 'Starts ScreenApp hidden in the tray when you sign in, so Print Screen works straight away. The entry points at this copy of the app, so after moving its folder switch this off and on again.'
+                  : 'Only available in the packaged app. Running from source has no stable executable to register.'
+              }
+            >
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={autostart.enabled}
+                  disabled={!autostart.available}
+                  onChange={(e) => void toggleAutostart(e.target.checked)}
+                />
+                Start with Windows
+              </label>
+            </Hint>
             <Hint text="Asks GitHub once at startup whether a newer release exists. Nothing is downloaded or installed, you get a link to the release page. Turn it off to make no network requests at all.">
               <label className="check">
                 <input
@@ -1010,21 +1051,6 @@ export default function App() {
           destructive
           onConfirm={deleteAll}
           onCancel={() => setConfirmClear(false)}
-        />
-      ) : null}
-
-      {frozen ? (
-        <RegionSelector
-          imageUrl={frozen.url}
-          imageWidth={frozen.width}
-          imageHeight={frozen.height}
-          hint={
-            frozen.purpose === 'shot'
-              ? 'Select the region to capture'
-              : 'Select the region to record'
-          }
-          onSelect={(rect) => void handleRegionSelected(rect)}
-          onCancel={closeFrozen}
         />
       ) : null}
 

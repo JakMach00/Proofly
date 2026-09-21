@@ -25,7 +25,7 @@ and they can be changed in the app (the "Keyboard shortcuts" button).
 | Default | Action |
 | --- | --- |
 | Ctrl+Shift+F9 | capture the selected screen |
-| Ctrl+Shift+F10 | capture a region |
+| Print Screen | capture a region, straight to the clipboard |
 | Ctrl+Shift+F11 | start and stop recording |
 | Ctrl+Shift+F12 | save the PDF and recordings |
 | Delete | delete the selected annotation (in the editor) |
@@ -38,8 +38,11 @@ handle reshapes it, dragging the body moves it, and the colour, thickness, step 
 controls change the selected item live instead of only affecting the next one.
 
 Undo keeps a real history, so it steps back through deletions, moves, property changes and
-crops, not just the last shape drawn. Text takes multiple lines, has its own size control, an
-optional outline and a choice of fonts. The Crop tool trims the screenshot itself, and since
+crops, not just the last shape drawn. Text is edited in place on the image: placing a box starts
+typing immediately, a double click reopens an existing label, Enter adds a line, and Escape or a
+click elsewhere finishes. The editing field copies the label's font, size and colour at the
+current zoom, so what you type sits exactly where the finished text will be painted. Text also
+has its own size control, an optional outline and a choice of fonts. The Crop tool trims the screenshot itself, and since
 annotations are stored in the coordinates of the original image, cropping never moves them and
 "Reset crop" restores the full frame.
 
@@ -138,6 +141,29 @@ the status bar instead of failing.
 The trade-off is size. H.264 needs roughly 30 to 50 percent more bitrate than VP9 for the same
 image, so WebM stays available for material that is only ever watched inside a browser. The
 speed conversion keeps whatever container the clip already uses.
+
+## Region capture and Print Screen
+
+Print Screen opens a frozen full screen overlay on the display under the pointer. Drag to
+select, Escape or a right click cancels, and a plain click starts over rather than closing. The
+selection lands in the Windows clipboard and in the gallery. The overlay reports its rectangle in
+physical pixels, so the result is sharp on scaled displays.
+
+Windows keeps Print Screen for itself while Settings, Accessibility, Keyboard, "Use the Print
+screen key to open screen capture" is on. Switch that off, otherwise the shortcut settings
+report the key as taken by another program.
+
+## Running in the background
+
+Print Screen only works while the app runs, so the window X hides the app from the taskbar and
+leaves it in the tray rather than quitting, with a tray notice the first time in a session.
+Minimize behaves as usual and sends the window to the taskbar. The tray menu offers opening the window, capturing a region and quitting. Only
+one copy runs at a time: launching it again brings the existing window forward instead of
+starting a second process that would fight over the global shortcuts.
+
+"Start with Windows" registers a login item that starts the app hidden in the tray. It points
+at the executable currently running, so after moving the unpacked folder switch the option off
+and on again. It is unavailable when running from source.
 
 ## Duration metadata
 

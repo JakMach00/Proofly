@@ -1,7 +1,7 @@
 {
   "name": "screenapp",
   "productName": "ScreenApp",
-  "version": "1.8.1",
+  "version": "1.9.0",
   "description": "ScreenApp",
   "main": "electron/main.js",
   "author": "Jakub",
@@ -31,7 +31,7 @@
     "wait-on": "^8.0.1"
   },
   "build": {
-    "appId": "pl.jakub.screenapp",
+    "appId": "ScreenApp",
     "productName": "ScreenApp",
     "directories": {
       "output": "release"

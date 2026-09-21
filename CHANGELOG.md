@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.9.0
+
+### Capture
+
+- Print Screen captures a region. Selection happens on the screen itself, in a frozen full
+  screen overlay like Snipping Tool, instead of inside the application window.
+- A captured region goes straight into the Windows clipboard as well as into the gallery.
+- A shortcut captures the display under the pointer, the sidebar button the display chosen in
+  the sidebar. Recording a region uses the same overlay.
+- Existing custom shortcuts are kept, only the region binding moves to Print Screen.
+
+### Background running
+
+- Start with Windows, off by default. The app starts hidden in the tray when you sign in.
+- The window X hides the app from the taskbar while it keeps running in the tray, and the first
+  close of a session says so in a tray notice. Minimize still sends it to the taskbar.
+- The tray menu offers opening the window, capturing a region and quitting.
+- Only one copy runs at a time. Launching it again brings the running window forward.
+
+### Editor
+
+- Text is edited in place, directly on the image inside its dashed frame. The separate content
+  field is gone.
+- Placing a new text box starts typing straight away, double clicking an existing label opens
+  it for editing, and Escape or a click elsewhere finishes.
+- A text box left empty disappears without leaving an undo step behind.
+- Selecting or grabbing something without moving it no longer counts as an unsaved change,
+  and neither does a click that draws nothing.
+
+### Other
+
+- The application identifier is ScreenApp, so notifications name the sender ScreenApp instead
+  of pl.jakub.screenapp.
+
 ## 1.8.1
 
 - Highlighting no longer offers a thickness, for the same reason redaction does not: both are

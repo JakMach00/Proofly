@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #000;
+        cursor: crosshair;
+        user-select: none;
+      }
+      #shot {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        display: block;
+      }
+      #dim {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.42);
+      }
+      /* The selection is cut out of the dimmed screen by its own shadow. */
+      #box {
+        position: fixed;
+        display: none;
+        outline: 2px solid #b6f24a;
+        box-shadow: 0 0 0 100000px rgba(0, 0, 0, 0.42);
+      }
+      #size {
+        position: fixed;
+        display: none;
+        font: 12px "Cascadia Mono", Consolas, monospace;
+        color: #fff;
+        background: rgba(0, 0, 0, 0.75);
+        padding: 2px 7px;
+        border-radius: 4px;
+      }
+      #hint {
+        position: fixed;
+        top: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        font: 13px "Segoe UI", system-ui, sans-serif;
+        color: #fff;
+        background: rgba(0, 0, 0, 0.72);
+        padding: 7px 14px;
+        border-radius: 7px;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <img id="shot" alt="" draggable="false" />
+    <div id="dim"></div>
+    <div id="box"></div>
+    <div id="size"></div>
+    <div id="hint">Drag to select an area. Esc or right click cancels.</div>
+    <script>
+      const shot = document.getElementById('shot');
+      const dim = document.getElementById('dim');
+      const box = document.getElementById('box');
+      const size = document.getElementById('size');
+      const hint = document.getElementById('hint');
+      let start = null;
+      let finished = false;
+
+      window.overlay.onImage((url) => {
+        shot.onload = () => window.overlay.ready();
+        shot.src = url;
+      });
+
+      // The screenshot is in physical pixels while the window works in CSS
+      // pixels, so every rectangle is scaled before it goes back.
+      const scale = () => (shot.naturalWidth || window.innerWidth) / window.innerWidth;
+
+      const rectFrom = (x1, y1, x2, y2) => ({
+        x: Math.min(x1, x2),
+        y: Math.min(y1, y2),
+        w: Math.abs(x2 - x1),
+        h: Math.abs(y2 - y1),
+      });
+
+      const cancel = () => {
+        if (finished) return;
+        finished = true;
+        window.overlay.cancel();
+      };
+
+      window.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') cancel();
+      });
+      window.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+        cancel();
+      });
+
+      window.addEventListener('mousedown', (event) => {
+        if (event.button !== 0 || finished) return;
+        start = { x: event.clientX, y: event.clientY };
+        dim.style.display = 'none';
+        hint.style.display = 'none';
+        box.style.display = 'block';
+        size.style.display = 'block';
+        box.style.left = `${start.x}px`;
+        box.style.top = `${start.y}px`;
+        box.style.width = '0px';
+        box.style.height = '0px';
+      });
+
+      window.addEventListener('mousemove', (event) => {
+        if (!start) return;
+        const r = rectFrom(start.x, start.y, event.clientX, event.clientY);
+        box.style.left = `${r.x}px`;
+        box.style.top = `${r.y}px`;
+        box.style.width = `${r.w}px`;
+        box.style.height = `${r.h}px`;
+        const k = scale();
+        size.textContent = `${Math.round(r.w * k)} x ${Math.round(r.h * k)}`;
+        size.style.left = `${r.x}px`;
+        size.style.top = `${Math.max(4, r.y - 26)}px`;
+      });
+
+      window.addEventListener('mouseup', (event) => {
+        if (!start || finished) return;
+        const r = rectFrom(start.x, start.y, event.clientX, event.clientY);
+        start = null;
+        if (r.w < 4 || r.h < 4) {
+          // A plain click is not a selection, start over instead of closing.
+          box.style.display = 'none';
+          size.style.display = 'none';
+          dim.style.display = 'block';
+          hint.style.display = 'block';
+          return;
+        }
+        finished = true;
+        const k = scale();
+        window.overlay.done({
+          x: Math.round(r.x * k),
+          y: Math.round(r.y * k),
+          w: Math.round(r.w * k),
+          h: Math.round(r.h * k),
+        });
+      });
+    </script>
+  </body>
+</html>

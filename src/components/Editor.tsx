@@ -43,6 +43,8 @@ interface Snapshot {
   annotations: Annotation[];
   nextStep: number;
   crop: Rect | null;
+  /** Whether the editor was clean before this step, restored on undo. */
+  dirty: boolean;
 }
 
 function isShape(a: Annotation): a is ShapeAnnotation {
@@ -213,10 +215,24 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
     handle?: string;
     ox: number;
     oy: number;
+    /** Set once the pointer actually moves during the gesture. */
+    moved?: boolean;
+    /** The gesture placed this annotation, so it is a change even unmoved. */
+    created?: boolean;
   } | null>(null);
   const textEditRef = useRef<string | null>(null);
-  const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
-  const focusTextRef = useRef(false);
+  /** The field laid over the canvas while a text label is being edited. */
+  const inlineRef = useRef<HTMLTextAreaElement | null>(null);
+  /**
+   * A text box placed by the current edit session, with the undo index of the
+   * state before it. Leaving it empty rolls the placement back entirely.
+   */
+  const placedTextRef = useRef<{ id: string; historyIndex: number } | null>(null);
+  /**
+   * Mirrors editingId synchronously. Removing a focused field can fire a second
+   * blur, and without this the empty-box rollback would run twice.
+   */
+  const editingRef = useRef<string | null>(null);
 
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [history, setHistory] = useState<Snapshot[]>([]);
@@ -233,6 +249,8 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
   const [ready, setReady] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [pendingNav, setPendingNav] = useState<PendingNav>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [, setLayoutTick] = useState(0);
 
   const selected = annotations.find((a) => a.id === selectedId) || null;
 
@@ -241,10 +259,10 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
     (coalesceKey?: string) => {
       if (coalesceKey && textEditRef.current === coalesceKey) return;
       textEditRef.current = coalesceKey ?? null;
-      setHistory((prev) => [...prev.slice(-49), { annotations, nextStep, crop }]);
+      setHistory((prev) => [...prev.slice(-49), { annotations, nextStep, crop, dirty }]);
       setDirty(true);
     },
-    [annotations, nextStep, crop],
+    [annotations, nextStep, crop, dirty],
   );
 
   const viewScale = useCallback(() => {
@@ -270,7 +288,12 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
       // Annotations are kept in the coordinates of the original image, so a
       // crop never has to move them.
       ctx.translate(-area.x, -area.y);
-      for (const a of annotations) drawAnnotation(ctx, a);
+      // While a label is edited in place the field over the canvas shows it,
+      // so it is not painted twice. Saving passes false and paints everything.
+      for (const a of annotations) {
+        if (withSelection && a.id === editingId) continue;
+        drawAnnotation(ctx, a);
+      }
 
       if (!withSelection) {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -287,7 +310,7 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
         ctx.restore();
       }
 
-      const sel = annotations.find((a) => a.id === selectedId);
+      const sel = annotations.find((a) => a.id === selectedId && a.id !== editingId);
       if (sel) {
         const b = bounds(ctx, sel);
         ctx.save();
@@ -310,7 +333,7 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
       }
       ctx.setTransform(1, 0, 0, 1, 0, 0);
     },
-    [annotations, selectedId, crop, cropDraft, viewScale],
+    [annotations, selectedId, crop, cropDraft, viewScale, editingId],
   );
 
   useEffect(() => {
@@ -323,6 +346,9 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
     setSelectedId(null);
     setNextStep(1);
     setDirty(false);
+    setEditingId(null);
+    editingRef.current = null;
+    placedTextRef.current = null;
     loadImage(shot.url)
       .then((img) => {
         if (cancelled) return;
@@ -386,6 +412,13 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
 
   const handleDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
     if (!ready) return;
+    // Clicking away from a label being edited commits it and does nothing
+    // else, the way a text box in any drawing program behaves.
+    if (editingId) {
+      event.preventDefault();
+      finishEditing();
+      return;
+    }
     const p = toImage(event);
 
     if (tool === 'crop') {
@@ -439,7 +472,7 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
       setAnnotations((prev) => [...prev, a]);
       setNextStep((n) => n + 1);
       setSelectedId(a.id);
-      dragRef.current = { mode: 'move', id: a.id, ox: p.x, oy: p.y };
+      dragRef.current = { mode: 'move', id: a.id, ox: p.x, oy: p.y, created: true };
       return;
     }
 
@@ -451,17 +484,20 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
         width,
         x: p.x,
         y: p.y,
-        text: 'Text',
+        text: '',
         size: fontSize,
         font,
         outline,
       };
+      // The undo step for this placement sits at the current history length.
+      placedTextRef.current = { id: a.id, historyIndex: history.length };
       setAnnotations((prev) => [...prev, a]);
       setSelectedId(a.id);
-      // Placing a text box hands the keyboard straight to it, so there is no
-      // detour through the content field.
-      focusTextRef.current = true;
-      dragRef.current = { mode: 'move', id: a.id, ox: p.x, oy: p.y };
+      editingRef.current = a.id;
+      setEditingId(a.id);
+      // Keeps the browser from moving focus to the page, which would steal it
+      // from the field that is about to appear.
+      event.preventDefault();
       return;
     }
 
@@ -504,6 +540,7 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
       return;
     }
 
+    drag.moved = true;
     setAnnotations((prev) =>
       prev.map((a) => {
         if (a.id !== drag.id) return a;
@@ -545,13 +582,33 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
       return;
     }
 
+    // Takes back the undo step of a gesture that turned out to change nothing,
+    // together with the unsaved flag it raised.
+    const dropLastStep = () =>
+      setHistory((prev) => {
+        const last = prev[prev.length - 1];
+        if (last) setDirty(last.dirty);
+        return prev.slice(0, -1);
+      });
+
+    // Selecting or grabbing something without moving it is not an edit.
+    if ((drag.mode === 'move' || drag.mode === 'handle') && !drag.moved && !drag.created) {
+      dropLastStep();
+      return;
+    }
+
     if (drag.mode !== 'create') return;
-    setAnnotations((prev) =>
-      prev.filter((a) => {
-        if (a.id !== drag.id || !isShape(a)) return true;
-        return Math.abs(a.x2 - a.x1) > 3 || Math.abs(a.y2 - a.y1) > 3;
-      }),
-    );
+    const shape = annotations.find((a) => a.id === drag.id);
+    const tooSmall =
+      shape !== undefined &&
+      isShape(shape) &&
+      Math.abs(shape.x2 - shape.x1) <= 3 &&
+      Math.abs(shape.y2 - shape.y1) <= 3;
+    if (tooSmall) {
+      setAnnotations((prev) => prev.filter((a) => a.id !== drag.id));
+      setSelectedId(null);
+      dropLastStep();
+    }
   };
 
   /** Steps back through everything: shapes, edits, deletions and crops. */
@@ -563,6 +620,7 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
       setNextStep(last.nextStep);
       setCrop(last.crop);
       setSelectedId(null);
+      setDirty(last.dirty);
       textEditRef.current = null;
       return prev.slice(0, -1);
     });
@@ -690,14 +748,103 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
     return () => window.removeEventListener('keydown', onKey);
   }, [pendingNav, requestLeave, removeSelected, undo, save]);
 
+  // Focus lands after the browser has finished handling the click, otherwise
+  // the default mousedown behaviour would take it straight back.
   useEffect(() => {
-    if (!focusTextRef.current) return;
-    const area = textAreaRef.current;
-    if (!area) return;
-    focusTextRef.current = false;
-    area.focus();
-    area.select();
-  }, [selectedId, annotations]);
+    if (!editingId) return;
+    const frame = window.requestAnimationFrame(() => {
+      const field = inlineRef.current;
+      if (!field) return;
+      field.focus();
+      field.setSelectionRange(field.value.length, field.value.length);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [editingId]);
+
+  // The overlay is positioned in screen pixels, so it has to follow the canvas
+  // whenever the window is resized.
+  useEffect(() => {
+    const onResize = () => setLayoutTick((n) => n + 1);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  function finishEditing() {
+    const id = editingRef.current;
+    if (!id) return;
+    editingRef.current = null;
+    setEditingId(null);
+    textEditRef.current = null;
+    const target = annotations.find((a) => a.id === id);
+    const empty = !target || target.type !== 'text' || target.text.trim() === '';
+    const placed = placedTextRef.current;
+    placedTextRef.current = null;
+    if (!empty) return;
+
+    if (placed && placed.id === id) {
+      // A box that never received any text leaves no trace, not even in undo.
+      setHistory((prev) => {
+        const before = prev[placed.historyIndex];
+        if (before) {
+          setAnnotations(before.annotations);
+          setNextStep(before.nextStep);
+          setCrop(before.crop);
+          setDirty(before.dirty);
+        } else {
+          setAnnotations((list) => list.filter((a) => a.id !== id));
+        }
+        return prev.slice(0, placed.historyIndex);
+      });
+    } else {
+      push();
+      setAnnotations((list) => list.filter((a) => a.id !== id));
+    }
+    setSelectedId(null);
+  }
+
+  /** Double clicking a text label opens it for editing in place. */
+  const handleDoubleClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    const p = toImage(event);
+    const hit = hitTest(p.x, p.y);
+    if (!hit || hit.type !== 'text') return;
+    event.preventDefault();
+    placedTextRef.current = null;
+    setSelectedId(hit.id);
+    editingRef.current = hit.id;
+    setEditingId(hit.id);
+  };
+
+  /** Where the inline field sits and how big it is, in screen pixels. */
+  const inlineLayout = (() => {
+    const target = annotations.find((a) => a.id === editingId);
+    const canvas = canvasRef.current;
+    const img = imageRef.current;
+    if (!target || target.type !== 'text' || !canvas || !img) return null;
+    const box = canvas.getBoundingClientRect();
+    if (box.width === 0) return null;
+    const k = canvas.width / box.width;
+    const area = crop ?? { x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight };
+    const ctx = canvas.getContext('2d');
+    let widest = 0;
+    if (ctx) {
+      ctx.save();
+      ctx.font = `bold ${target.size}px ${target.font}`;
+      widest = Math.max(...textLines(target).map((line) => ctx.measureText(line || ' ').width));
+      ctx.restore();
+    }
+    const fontPx = target.size / k;
+    const lines = textLines(target).length;
+    return {
+      target,
+      left: (target.x - area.x) / k,
+      // Canvas text hangs from the top of its em box, a CSS line box adds half
+      // a leading above it, so the field is nudged up to line up exactly.
+      top: (target.y - area.y) / k - fontPx * 0.125,
+      width: Math.max(fontPx * 2, widest / k + fontPx),
+      height: lines * fontPx * 1.25,
+      fontPx,
+    };
+  })();
 
   const stepFieldValue = selected && selected.type === 'step' ? selected.n : nextStep;
   const textActive = tool === 'text' || (selected !== null && selected.type === 'text');
@@ -826,36 +973,62 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
         ) : null}
       </div>
 
-      {selected && selected.type === 'text' ? (
-        <div className="editor-tools">
-          <label className="inline grow">
-            Content
+      <div className="modal-body">
+        <div className="canvas-wrap">
+          <canvas
+            ref={canvasRef}
+            className="editor-canvas"
+            onMouseDown={handleDown}
+            onMouseMove={handleMove}
+            onMouseUp={handleUp}
+            onMouseLeave={handleUp}
+            onDoubleClick={handleDoubleClick}
+          />
+          {inlineLayout ? (
             <textarea
-              ref={textAreaRef}
-              rows={Math.min(6, Math.max(1, selected.text.split('\n').length))}
-              value={selected.text}
-              placeholder="Type here, Enter adds a new line"
+              ref={inlineRef}
+              // Focus on mount is the dependable path, the effect above only
+              // covers the case where something takes focus away right after.
+              autoFocus
+              onFocus={(e) => {
+                const length = e.currentTarget.value.length;
+                e.currentTarget.setSelectionRange(length, length);
+              }}
+              className={inlineLayout.target.outline ? 'inline-text outlined' : 'inline-text'}
+              wrap="off"
+              spellCheck={false}
+              value={inlineLayout.target.text}
+              placeholder="Type"
+              style={{
+                left: inlineLayout.left,
+                top: inlineLayout.top,
+                width: inlineLayout.width,
+                height: inlineLayout.height,
+                fontSize: inlineLayout.fontPx,
+                fontFamily: inlineLayout.target.font,
+                color: inlineLayout.target.color,
+                caretColor: inlineLayout.target.color,
+              }}
               onChange={(e) => {
                 const value = e.target.value;
-                updateSelected(
-                  (a) => (a.type === 'text' ? { ...a, text: value } : a),
-                  `text:${selected.id}`,
+                const id = inlineLayout.target.id;
+                push(`text:${id}`);
+                setAnnotations((prev) =>
+                  prev.map((a) => (a.id === id && a.type === 'text' ? { ...a, text: value } : a)),
                 );
               }}
+              onKeyDown={(e) => {
+                // Enter is a new line. Escape, or clicking elsewhere, finishes.
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  finishEditing();
+                }
+              }}
+              onBlur={() => finishEditing()}
             />
-          </label>
+          ) : null}
         </div>
-      ) : null}
-
-      <div className="modal-body">
-        <canvas
-          ref={canvasRef}
-          className="editor-canvas"
-          onMouseDown={handleDown}
-          onMouseMove={handleMove}
-          onMouseUp={handleUp}
-          onMouseLeave={handleUp}
-        />
       </div>
 
       {pendingNav ? (

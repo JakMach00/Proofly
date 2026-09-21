@@ -10,7 +10,7 @@ import type { ShortcutAction, ShortcutMap } from '../types';
  */
 export const DEFAULT_SHORTCUTS: ShortcutMap = {
   capture: 'Ctrl+Shift+F9',
-  region: 'Ctrl+Shift+F10',
+  region: 'PrintScreen',
   record: 'Ctrl+Shift+F11',
   export: 'Ctrl+Shift+F12',
 };
@@ -78,6 +78,18 @@ export function isDuplicate(map: ShortcutMap, action: ShortcutAction, accelerato
   return (Object.keys(map) as ShortcutAction[]).some(
     (key) => key !== action && map[key] === accelerator,
   );
+}
+
+/**
+ * 1.9.0 moves region capture to Print Screen. Bindings saved by an earlier
+ * version keep every custom choice except that one.
+ */
+export function migrateShortcuts(
+  current: Partial<ShortcutMap> | null,
+  previous: Partial<ShortcutMap> | null,
+): ShortcutMap {
+  if (current) return mergeShortcuts(current);
+  return mergeShortcuts(previous ? { ...previous, region: DEFAULT_SHORTCUTS.region } : null);
 }
 
 export function mergeShortcuts(stored: Partial<ShortcutMap> | null): ShortcutMap {

@@ -1029,3 +1029,49 @@ textarea {
 .editor-tools .inline.grow textarea {
   flex: 1;
 }
+
+/* Wraps the editor canvas so a text field can sit exactly on top of it. */
+.canvas-wrap {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  max-width: 100%;
+}
+
+/* Editing happens on the image itself: same font, size and colour as the
+   label it replaces, inside the dashed selection frame. */
+.inline-text {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: none;
+  outline: 1.5px dashed #00e5ff;
+  outline-offset: 4px;
+  background: transparent;
+  font-weight: bold;
+  line-height: 1.25;
+  white-space: pre;
+  overflow: hidden;
+  resize: none;
+  min-height: 0;
+  border-radius: 0;
+  z-index: 2;
+}
+
+.inline-text:focus-visible {
+  outline: 1.5px dashed #00e5ff;
+  outline-offset: 4px;
+}
+
+.inline-text::placeholder {
+  color: currentColor;
+  opacity: 0.45;
+}
+
+.inline-text.outlined {
+  text-shadow:
+    -1px -1px 0 rgba(0, 0, 0, 0.7),
+    1px -1px 0 rgba(0, 0, 0, 0.7),
+    -1px 1px 0 rgba(0, 0, 0, 0.7),
+    1px 1px 0 rgba(0, 0, 0, 0.7);
+}
