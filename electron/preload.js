@@ -36,6 +36,8 @@ contextBridge.exposeInMainWorld('api', {
   reveal: (filePath) => ipcRenderer.invoke('shell:reveal', filePath),
   selectRegion: (displayId, purpose) =>
     ipcRenderer.invoke('region:select', { displayId: displayId || null, purpose }),
+  copyImage: (data) => ipcRenderer.invoke('clipboard:write-image', data),
+  saveImageAs: (data, name) => ipcRenderer.invoke('image:save-as', { data, name }),
   getAutostart: () => ipcRenderer.invoke('autostart:get'),
   setAutostart: (enabled) => ipcRenderer.invoke('autostart:set', Boolean(enabled)),
   checkUpdate: () => ipcRenderer.invoke('update:check'),

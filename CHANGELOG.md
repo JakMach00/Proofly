@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.0.0
+
+- The application is now called Proofly. The window, the tray, notifications, the built package
+  and the settings all use the new name.
+- Full screen capture can be locked to a region. Select the area once and every following
+  capture takes just that area, which removes reselecting the same part of the screen for every
+  step of a test. Reset brings the whole screen back. Locked captures go to the gallery only
+  and stay out of the clipboard, so a long series does not flood it.
+- Fixed the gallery squeezing its rows instead of scrolling once there were enough items, which
+  clipped the Delete button off the bottom of every card and forced zooming out to reach it.
+- The Left and Right arrow keys switch between screenshots in the editor, through the same
+  unsaved changes prompt as the Previous and Next buttons.
+- The editor can copy the current screenshot to the clipboard (Copy or Ctrl+C) or save it as a
+  PNG or JPG file, annotations and crop included, without saving it into the session. That
+  covers annotating one region to paste somewhere and carrying on with the rest.
+- The editor remembers the last tool, colour, thickness and text settings between screenshots
+  instead of returning to Arrow each time.
+- The options row under the tools keeps one height whichever tool is active, so the image no
+  longer jumps when switching between Select and a tool with more settings.
+
 ## 1.9.0
 
 ### Capture
@@ -31,8 +51,8 @@
 
 ### Other
 
-- The application identifier is ScreenApp, so notifications name the sender ScreenApp instead
-  of pl.jakub.screenapp.
+- The application identifier is Proofly, so notifications name the sender Proofly instead
+  of pl.jakub.proofly.
 
 ## 1.8.1
 
@@ -42,7 +62,7 @@
 - Placing a text box hands the keyboard to it straight away, so typing starts without clicking
   into the content field first. The box grows with the text and can no longer be dragged to a
   size by hand.
-- Starting a recording with "Hide ScreenApp while capturing" enabled minimizes the window, so it
+- Starting a recording with "Hide Proofly while capturing" enabled minimizes the window, so it
   stays out of the recording after the region picker brought it back into view.
 
 ## 1.8.0
@@ -91,7 +111,7 @@
 - Placing a text box hands the keyboard to it straight away, so typing starts without clicking
   into the content field first. The box grows with the text and can no longer be dragged to a
   size by hand.
-- Starting a recording with "Hide ScreenApp while capturing" enabled minimizes the window, so it
+- Starting a recording with "Hide Proofly while capturing" enabled minimizes the window, so it
   stays out of the recording after the region picker brought it back into view.
 
 ## 1.8.0

@@ -98,6 +98,11 @@ export default function App() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [trash, setTrash] = useState<{ shot: Shot; index: number }[]>([]);
+  /**
+   * A region selected once and reused by every following capture, so the same
+   * part of the screen can be captured repeatedly without reselecting it.
+   */
+  const [lockedRegion, setLockedRegion] = useState<{ rect: Rect; displayId: string } | null>(null);
   const [theme, setTheme] = useState<Theme>(() =>
     loadSetting<Theme>('theme', window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'),
   );
@@ -184,8 +189,8 @@ export default function App() {
       setAutostart(next);
       setStatus(
         next.enabled
-          ? 'ScreenApp will start in the tray when you sign in.'
-          : 'ScreenApp will no longer start with Windows.',
+          ? 'Proofly will start in the tray when you sign in.'
+          : 'Proofly will no longer start with Windows.',
       );
     } catch (err) {
       setStatus(`Could not change the startup setting: ${String(err)}`);
@@ -224,9 +229,19 @@ export default function App() {
     setBusy(true);
     try {
       if (hideOnCapture) await window.api.hideWindow(source.displayId);
-      const result = await grabScreenshot(source.id, source.width, source.height, null);
+      // A locked region belongs to one display, so it is only applied while
+      // that display is the selected source.
+      const region =
+        lockedRegion && lockedRegion.displayId === source.displayId ? lockedRegion.rect : null;
+      const result = await grabScreenshot(source.id, source.width, source.height, region);
       addShot(makeShot({ kind: 'image', ...result }));
-      setStatus(`Captured ${result.width} x ${result.height}.`);
+      // Locked captures are usually taken many times in a row, so they stay out
+      // of the clipboard; the editor's Copy is there for the one that matters.
+      setStatus(
+        region
+          ? `Captured the locked region, ${result.width} x ${result.height}.`
+          : `Captured ${result.width} x ${result.height}.`,
+      );
     } catch (err) {
       setStatus(`Capture failed: ${String(err)}`);
     } finally {
@@ -235,7 +250,36 @@ export default function App() {
       await window.api.showWindow(false);
       setBusy(false);
     }
-  }, [source, busy, hideOnCapture, addShot]);
+  }, [source, busy, hideOnCapture, addShot, lockedRegion]);
+
+  /** Picks the region that every following capture will reuse. */
+  const lockRegion = useCallback(async () => {
+    if (!source || busy) return;
+    setBusy(true);
+    try {
+      if (hideOnCapture) await window.api.hideWindow(source.displayId);
+      const result = await window.api.selectRegion(source.displayId, 'lock');
+      await window.api.showWindow(false);
+      if (!result || !('rect' in result)) {
+        setStatus('Region lock cancelled.');
+        return;
+      }
+      setLockedRegion({ rect: result.rect, displayId: result.displayId });
+      setStatus(
+        `Locked ${result.rect.w} x ${result.rect.h}. Full screen captures now take this area.`,
+      );
+    } catch (err) {
+      await window.api.showWindow(false);
+      setStatus(`Could not lock the region: ${String(err)}`);
+    } finally {
+      setBusy(false);
+    }
+  }, [source, busy, hideOnCapture]);
+
+  const resetLockedRegion = useCallback(() => {
+    setLockedRegion(null);
+    setStatus('Region lock cleared, captures take the whole screen again.');
+  }, []);
 
   /**
    * Selecting a region happens on the screen itself, in a frozen full screen
@@ -666,9 +710,9 @@ export default function App() {
         className="action"
         onClick={() => void captureFull()}
         disabled={busy}
-        aria-label="Capture full screen"
+        aria-label={lockedRegion ? 'Capture the locked region' : 'Capture full screen'}
       >
-        <span>Full screen</span>
+        <span>{lockedRegion ? 'Locked region' : 'Full screen'}</span>
         {shortcuts.capture ? <kbd>{shortcuts.capture}</kbd> : null}
       </button>
       <button
@@ -680,6 +724,20 @@ export default function App() {
         <span>Selected region</span>
         {shortcuts.region ? <kbd>{shortcuts.region}</kbd> : null}
       </button>
+      {lockedRegion ? (
+        <div className="folder-row">
+          <span className="folder-path">
+            Locked {lockedRegion.rect.w} x {lockedRegion.rect.h}
+          </span>
+          <button onClick={resetLockedRegion}>Reset</button>
+        </div>
+      ) : (
+        <Hint text="Select an area once and every following full screen capture takes just that area, which saves reselecting the same part of the screen for every step. Reset brings the whole screen back.">
+          <button className="action" onClick={() => void lockRegion()} disabled={busy}>
+            <span>Lock a region</span>
+          </button>
+        </Hint>
+      )}
     </section>
   );
 
@@ -722,7 +780,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <span className="brand-name">ScreenApp</span>
+          <span className="brand-name">Proofly</span>
         </div>
         <button
           className="theme-switch"
@@ -770,7 +828,7 @@ export default function App() {
                   checked={hideOnCapture}
                   onChange={(e) => setHideOnCapture(e.target.checked)}
                 />
-                Hide ScreenApp while capturing
+                Hide Proofly while capturing
               </label>
             </Hint>
           </section>
@@ -916,7 +974,7 @@ export default function App() {
             <Hint
               text={
                 autostart.available
-                  ? 'Starts ScreenApp hidden in the tray when you sign in, so Print Screen works straight away. The entry points at this copy of the app, so after moving its folder switch this off and on again.'
+                  ? 'Starts Proofly hidden in the tray when you sign in, so Print Screen works straight away. The entry points at this copy of the app, so after moving its folder switch this off and on again.'
                   : 'Only available in the packaged app. Running from source has no stable executable to register.'
               }
             >
@@ -1006,7 +1064,7 @@ export default function App() {
                   onClick={() => void captureFull()}
                   disabled={busy}
                 >
-                  <span>Capture full screen</span>
+                  <span>{lockedRegion ? 'Capture locked region' : 'Capture full screen'}</span>
                   {shortcuts.capture ? <kbd>{shortcuts.capture}</kbd> : null}
                 </button>
                 <button

@@ -1,8 +1,8 @@
 {
-  "name": "screenapp",
-  "productName": "ScreenApp",
-  "version": "1.9.0",
-  "description": "ScreenApp",
+  "name": "proofly",
+  "productName": "Proofly",
+  "version": "2.0.0",
+  "description": "Proofly",
   "main": "electron/main.js",
   "author": "Jakub",
   "license": "MIT",
@@ -31,8 +31,8 @@
     "wait-on": "^8.0.1"
   },
   "build": {
-    "appId": "ScreenApp",
-    "productName": "ScreenApp",
+    "appId": "Proofly",
+    "productName": "Proofly",
     "directories": {
       "output": "release"
     },
@@ -47,7 +47,7 @@
         "zip"
       ],
       "icon": "build/icon.ico",
-      "artifactName": "ScreenApp-${version}-win-x64.${ext}"
+      "artifactName": "Proofly-${version}-win-x64.${ext}"
     },
     "compression": "maximum"
   }

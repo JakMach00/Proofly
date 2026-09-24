@@ -1,4 +1,4 @@
-# ScreenApp
+# Proofly
 
 Desktop tool for documenting test runs: screenshots (whole screen or a region), annotations (arrows, boxes, numbered steps, text, highlight, redaction), screen
 recording tuned for small files, and PDF export.
@@ -14,7 +14,7 @@ npm run typecheck  # tsc --noEmit
 npm run dist       # production build, zip in release/
 ```
 
-`npm run dist` produces `release/ScreenApp-<version>-win-x64.zip` containing the complete
+`npm run dist` produces `release/Proofly-<version>-win-x64.zip` containing the complete
 ready-to-run application folder, not a bare executable.
 
 ## Shortcuts
@@ -31,6 +31,8 @@ and they can be changed in the app (the "Keyboard shortcuts" button).
 | Delete | delete the selected annotation (in the editor) |
 | Ctrl+Z | undo the last annotation |
 | Ctrl+S | save the annotations of the open screenshot |
+| Ctrl+C | copy the open screenshot, as it looks now, to the clipboard |
+| Left / Right | previous or next screenshot in the editor |
 
 Annotations stay editable after they are drawn. A selected shape shows white handles: the two
 ends of an arrow, the four corners of a box, an ellipse, a highlight or a redaction. Dragging a
@@ -57,7 +59,7 @@ in Word and VS Code. And Ctrl+Alt is what AltGr sends on Polish, German and othe
 layouts, so Ctrl+Alt+S would fire every time the user types a Polish "s with acute". The
 settings dialog flags both problems if you rebind to such a combination anyway.
 
-With "Hide ScreenApp while capturing" enabled, starting a recording minimizes the window so it
+With "Hide Proofly while capturing" enabled, starting a recording minimizes the window so it
 does not end up in the material. That matters most for region recording, where selecting the
 area needs a visible window first.
 
@@ -142,6 +144,19 @@ The trade-off is size. H.264 needs roughly 30 to 50 percent more bitrate than VP
 image, so WebM stays available for material that is only ever watched inside a browser. The
 speed conversion keeps whatever container the clip already uses.
 
+## Locking a region
+
+Full screen capture can be pinned to one area. "Lock a region" in the Capture section opens the
+same overlay, and from then on the capture button and its shortcut take only that area, which
+matters when a test run needs the same panel captured twenty times in a row. The button says
+"Locked region" while it is set and Reset restores the whole screen. Locked captures go to the
+gallery only and never to the clipboard, because a series of twenty would flood it; the editor's
+Copy button handles the one screenshot that actually needs pasting.
+
+The lock belongs to the display it was selected on and is only applied while that display is the
+selected source. It is not remembered between runs, because a saved rectangle would silently
+point somewhere else after a resolution change.
+
 ## Region capture and Print Screen
 
 Print Screen opens a frozen full screen overlay on the display under the pointer. Drag to
@@ -222,7 +237,7 @@ about which button is the main one.
 
 ## Update check
 
-At startup the application asks the GitHub API whether `JakMach00/ScreenApp` has a newer
+At startup the application asks the GitHub API whether `JakMach00/Proofly` has a newer
 published release, and shows a bar offering the release page when it does. Nothing is downloaded
 and nothing is installed: updating stays a manual unpack, which is the point, because installing
 an unsigned executable in the background is exactly the behaviour corporate security tooling

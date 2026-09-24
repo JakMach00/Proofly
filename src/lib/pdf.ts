@@ -76,7 +76,7 @@ export async function buildPdf(shots: Shot[], options: PdfOptions): Promise<Uint
     doc.addImage(dataUrl, format, x, y, drawW, drawH, undefined, 'FAST');
   }
 
-  doc.setProperties({ title: options.title, creator: 'ScreenApp' });
+  doc.setProperties({ title: options.title, creator: 'Proofly' });
   const buffer = doc.output('arraybuffer');
   return new Uint8Array(buffer);
 }

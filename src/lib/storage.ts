@@ -1,4 +1,4 @@
-const PREFIX = 'screenapp.';
+const PREFIX = 'proofly.';
 
 export function loadSetting<T>(key: string, fallback: T): T {
   try {

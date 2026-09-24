@@ -119,7 +119,7 @@ export default function ShortcutSettings({ shortcuts, failed, onChange, onClose 
           Windows also reserves some combinations for itself, Win+Shift+S among them, and no
           application can take those over. Print Screen belongs to Windows as long as Settings,
           Accessibility, Keyboard, "Use the Print screen key to open screen capture" is on, so
-          switch that off for ScreenApp to receive the key.
+          switch that off for Proofly to receive the key.
         </p>
         {message ? <p className="warn">{message}</p> : null}
       </div>

@@ -537,8 +537,12 @@ kbd {
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+  /* Rows must keep their content height. Without this the grid squeezes every
+     row into the visible area instead of scrolling, which clipped the Delete
+     button off the bottom of each card once there were enough of them. */
+  grid-auto-rows: max-content;
   gap: 12px;
-  padding: 14px 16px;
+  padding: 14px 16px 18px;
   overflow-y: auto;
   align-content: start;
 }
@@ -1074,4 +1078,35 @@ textarea {
     1px -1px 0 rgba(0, 0, 0, 0.7),
     -1px 1px 0 rgba(0, 0, 0, 0.7),
     1px 1px 0 rgba(0, 0, 0, 0.7);
+}
+
+/* The options row keeps one height whatever the active tool shows, so the
+   canvas below it does not jump when switching between tools. */
+.editor-tools.options-row {
+  min-height: 52px;
+}
+
+.options-row select,
+.options-row input[type='number'] {
+  height: 32px;
+  padding: 4px 8px;
+  box-sizing: border-box;
+}
+
+.options-row .check {
+  padding: 0;
+  align-items: center;
+}
+
+.options-row .check input {
+  margin-top: 0;
+}
+
+.notice {
+  font-size: 12px;
+  color: var(--accent);
+  max-width: 320px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

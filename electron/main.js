@@ -9,6 +9,7 @@ const {
   ipcMain,
   desktopCapturer,
   globalShortcut,
+  nativeImage,
   net,
   screen,
   session,
@@ -19,6 +20,8 @@ const path = require('node:path');
 const fs = require('node:fs/promises');
 
 const isDev = !app.isPackaged;
+// The repository on GitHub is still named ScreenApp. Change this only if
+// the repository itself is renamed.
 const REPO = 'JakMach00/ScreenApp';
 const DEV_URL = 'http://localhost:5173';
 
@@ -126,10 +129,10 @@ function showMainWindow() {
 function createTray() {
   if (tray) return;
   tray = new Tray(ICON_PATH);
-  tray.setToolTip('ScreenApp');
+  tray.setToolTip('Proofly');
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: 'Open ScreenApp', click: showMainWindow },
+      { label: 'Open Proofly', click: showMainWindow },
       {
         label: 'Capture a region',
         click: () => {
@@ -167,7 +170,7 @@ app.whenReady().then(() => {
   // shows its own icon on the taskbar.
   // Windows shows this identifier as the sender of notifications when the app
   // has no Start menu shortcut, which is the case for the zip build.
-  app.setAppUserModelId('ScreenApp');
+  app.setAppUserModelId('Proofly');
 
   // Fallback path: if the legacy getUserMedia constraints ever stop working,
   // the renderer can use getDisplayMedia and this handler picks the screen
@@ -487,7 +490,7 @@ ipcMain.handle('update:check', async () => {
     const response = await net.fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
       headers: {
         Accept: 'application/vnd.github+json',
-        'User-Agent': `ScreenApp/${current}`,
+        'User-Agent': `Proofly/${current}`,
       },
       signal: controller.signal,
     });
@@ -627,7 +630,8 @@ ipcMain.handle('region:select', async (_event, payload) => {
     h: Math.max(1, Math.min(size.height - y, Math.round(result.rect.h))),
   };
 
-  if (purpose === 'record') {
+  // 'record' and 'lock' only need the rectangle, nothing is cropped or copied.
+  if (purpose === 'record' || purpose === 'lock') {
     return { rect, displayId: String(result.display.id) };
   }
 
@@ -658,6 +662,39 @@ ipcMain.handle('autostart:set', (_event, enabled) => {
   if (!app.isPackaged) return { available: false, enabled: false };
   app.setLoginItemSettings({ openAtLogin: Boolean(enabled), args: LOGIN_ARGS });
   return { available: true, enabled: app.getLoginItemSettings({ args: LOGIN_ARGS }).openAtLogin };
+});
+
+/**
+ * Saves one image wherever the user picks. The file type follows the chosen
+ * extension, so JPG is converted here and PNG is written as it arrives.
+ */
+ipcMain.handle('image:save-as', async (_event, payload) => {
+  const { data, name } = payload || {};
+  if (!win || !data) return null;
+  const result = await dialog.showSaveDialog(win, {
+    title: 'Save image',
+    defaultPath: `${name || 'screenshot'}.png`,
+    filters: [
+      { name: 'PNG image', extensions: ['png'] },
+      { name: 'JPG image', extensions: ['jpg', 'jpeg'] },
+    ],
+  });
+  if (result.canceled || !result.filePath) return null;
+  let target = result.filePath;
+  if (!/\.(png|jpe?g)$/i.test(target)) target = `${target}.png`;
+  const image = nativeImage.createFromBuffer(Buffer.from(data));
+  const bytes = /\.jpe?g$/i.test(target) ? image.toJPEG(92) : image.toPNG();
+  await fs.writeFile(target, bytes);
+  return target;
+});
+
+/** Copies an already cropped image, used by captures of a locked region. */
+ipcMain.handle('clipboard:write-image', (_event, data) => {
+  if (!data) return false;
+  const image = nativeImage.createFromBuffer(Buffer.from(data));
+  if (image.isEmpty()) return false;
+  clipboard.writeImage(image);
+  return true;
 });
 
 ipcMain.handle('shell:reveal', async (_event, target) => {

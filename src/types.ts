@@ -141,7 +141,7 @@ export interface ShortcutResult {
   failed: string[];
 }
 
-export interface ScreenAppApi {
+export interface ProoflyApi {
   listSources: () => Promise<SourceInfo[]>;
   captureScreen: (sourceId: string, width: number, height: number) => Promise<CaptureResult>;
   setPreferredSource: (sourceId: string) => Promise<boolean>;
@@ -165,8 +165,10 @@ export interface ScreenAppApi {
   reveal: (filePath: string) => Promise<RevealResult>;
   selectRegion: (
     displayId: string | null,
-    purpose: 'shot' | 'record',
+    purpose: 'shot' | 'record' | 'lock',
   ) => Promise<RegionResult | null>;
+  copyImage: (data: Uint8Array) => Promise<boolean>;
+  saveImageAs: (data: Uint8Array, name: string) => Promise<string | null>;
   getAutostart: () => Promise<AutostartState>;
   setAutostart: (enabled: boolean) => Promise<AutostartState>;
   checkUpdate: () => Promise<UpdateInfo>;
@@ -175,7 +177,7 @@ export interface ScreenAppApi {
 
 declare global {
   interface Window {
-    api: ScreenAppApi;
+    api: ProoflyApi;
   }
 
   /** Injected by Vite from the version field in package.json. */

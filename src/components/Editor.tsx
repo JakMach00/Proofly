@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { canvasToBlob, loadImage, makeThumb, uid } from '../lib/capture';
+import { loadSetting, saveSetting } from '../lib/storage';
 import type { Annotation, Rect, ShapeAnnotation, ShapeType, Shot, ToolId } from '../types';
 
 interface Props {
@@ -238,21 +239,34 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
   const [history, setHistory] = useState<Snapshot[]>([]);
   const [crop, setCrop] = useState<Rect | null>(null);
   const [cropDraft, setCropDraft] = useState<Rect | null>(null);
-  const [tool, setTool] = useState<ToolId>('arrow');
-  const [color, setColor] = useState(DEFAULT_COLOR);
-  const [width, setWidth] = useState(5);
-  const [fontSize, setFontSize] = useState(34);
-  const [font, setFont] = useState(FONTS[0].id);
-  const [outline, setOutline] = useState(true);
+  // The editor is rebuilt for every screenshot, so the drawing setup is kept
+  // in settings and picked up again instead of falling back to Arrow each time.
+  const [tool, setTool] = useState<ToolId>(() => loadSetting<ToolId>('editor.tool', 'arrow'));
+  const [color, setColor] = useState(() => loadSetting('editor.color', DEFAULT_COLOR));
+  const [width, setWidth] = useState(() => loadSetting('editor.width', 5));
+  const [fontSize, setFontSize] = useState(() => loadSetting('editor.fontSize', 34));
+  const [font, setFont] = useState(() => loadSetting('editor.font', FONTS[0].id));
+  const [outline, setOutline] = useState(() => loadSetting('editor.outline', true));
   const [nextStep, setNextStep] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [pendingNav, setPendingNav] = useState<PendingNav>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [, setLayoutTick] = useState(0);
 
   const selected = annotations.find((a) => a.id === selectedId) || null;
+
+  useEffect(() => {
+    // Crop is a one-off action, so the editor reopens on Select after it.
+    saveSetting('editor.tool', tool === 'crop' ? 'select' : tool);
+  }, [tool]);
+  useEffect(() => saveSetting('editor.color', color), [color]);
+  useEffect(() => saveSetting('editor.width', width), [width]);
+  useEffect(() => saveSetting('editor.fontSize', fontSize), [fontSize]);
+  useEffect(() => saveSetting('editor.font', font), [font]);
+  useEffect(() => saveSetting('editor.outline', outline), [outline]);
 
   /** Records the state before a change so undo can step back through it. */
   const push = useCallback(
@@ -700,6 +714,33 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
     redraw(true);
   }, [onSave, redraw]);
 
+  /** The image as it looks now, annotations and crop included, saved or not. */
+  const renderCurrent = useCallback(async () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    redraw(false);
+    try {
+      return new Uint8Array(await (await canvasToBlob(canvas)).arrayBuffer());
+    } finally {
+      redraw(true);
+    }
+  }, [redraw]);
+
+  const copyCurrent = useCallback(async () => {
+    const data = await renderCurrent();
+    if (!data) return;
+    const ok = await window.api.copyImage(data);
+    setNotice(ok ? 'Copied to the clipboard.' : 'Could not copy the image.');
+  }, [renderCurrent]);
+
+  const saveCurrentAs = useCallback(async () => {
+    const data = await renderCurrent();
+    if (!data) return;
+    const base = shot.name.replace(/\.[a-z0-9]+$/i, '');
+    const path = await window.api.saveImageAs(data, base);
+    if (path) setNotice(`Saved ${path}`);
+  }, [renderCurrent, shot.name]);
+
   const requestLeave = useCallback(
     (target: PendingNav) => {
       if (!target) return;
@@ -726,9 +767,19 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
   );
 
   useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+      // Fields keep their own keys: arrows move a slider, a select or a caret.
+      if (
+        target &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')
+      ) {
         if (event.ctrlKey && event.key.toLowerCase() === 's') {
           event.preventDefault();
           void save();
@@ -742,11 +793,20 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
       else if (event.ctrlKey && event.key.toLowerCase() === 's') {
         event.preventDefault();
         void save();
+      } else if (event.ctrlKey && event.key.toLowerCase() === 'c') {
+        event.preventDefault();
+        void copyCurrent();
+      } else if (event.key === 'ArrowRight' && index < total - 1) {
+        event.preventDefault();
+        requestLeave({ kind: 'nav', delta: 1 });
+      } else if (event.key === 'ArrowLeft' && index > 0) {
+        event.preventDefault();
+        requestLeave({ kind: 'nav', delta: -1 });
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [pendingNav, requestLeave, removeSelected, undo, save]);
+  }, [pendingNav, requestLeave, removeSelected, undo, save, copyCurrent, index, total]);
 
   // Focus lands after the browser has finished handling the click, otherwise
   // the default mousedown behaviour would take it straight back.
@@ -869,7 +929,15 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
         >
           Next
         </button>
+        <span className="mono">Left and Right arrows switch screenshots</span>
         <span className="spacer" />
+        {notice ? <span className="notice">{notice}</span> : null}
+        <button onClick={() => void copyCurrent()} title="Copies the image as it looks now (Ctrl+C)">
+          Copy
+        </button>
+        <button onClick={() => void saveCurrentAs()} title="Saves a PNG or JPG file">
+          Save as
+        </button>
         <button className="primary" onClick={() => void save()} disabled={!dirty}>
           Save changes
         </button>
@@ -911,7 +979,7 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
         {dirty ? <span className="dirty">Unsaved changes</span> : null}
       </div>
 
-      <div className="editor-tools">
+      <div className="editor-tools options-row">
         {widthActive ? (
           <label className="inline">
             Thickness
