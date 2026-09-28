@@ -25,7 +25,6 @@ import type {
   ShortcutMap,
   Shot,
   SourceInfo,
-  UpdateInfo,
   VideoFormat,
 } from './types';
 
@@ -63,14 +62,7 @@ export default function App() {
   const [status, setStatus] = useState<string>('Ready.');
   const [busy, setBusy] = useState(false);
   const [lastDir, setLastDir] = useState<string | null>(null);
-  const [update, setUpdate] = useState<UpdateInfo | null>(null);
-  const [dismissedVersion, setDismissedVersion] = useState<string | null>(() =>
-    loadSetting<string | null>('dismissedVersion', null),
-  );
   const [autostart, setAutostart] = useState<AutostartState>({ available: false, enabled: false });
-  const [checkOnStart, setCheckOnStart] = useState<boolean>(() =>
-    loadSetting('checkOnStart', true),
-  );
   const [saveDir, setSaveDir] = useState<string | null>(() => loadSetting<string | null>('saveDir', null));
   const [useSaveDir, setUseSaveDir] = useState<boolean>(() => loadSetting('useSaveDir', false));
 
@@ -131,8 +123,6 @@ export default function App() {
   useEffect(() => saveSetting('quality', quality), [quality]);
   useEffect(() => saveSetting('audioSource', audioSource), [audioSource]);
   useEffect(() => saveSetting('videoFormat', videoFormat), [videoFormat]);
-  useEffect(() => saveSetting('checkOnStart', checkOnStart), [checkOnStart]);
-  useEffect(() => saveSetting('dismissedVersion', dismissedVersion), [dismissedVersion]);
   useEffect(() => saveSetting('hideOnCapture', hideOnCapture), [hideOnCapture]);
   useEffect(() => saveSetting('clearAfterExport', clearAfterExport), [clearAfterExport]);
   useEffect(() => saveSetting('compressPdf', compressPdf), [compressPdf]);
@@ -195,28 +185,6 @@ export default function App() {
     } catch (err) {
       setStatus(`Could not change the startup setting: ${String(err)}`);
     }
-  }, []);
-
-  const checkForUpdate = useCallback(async (manual: boolean) => {
-    try {
-      const result = await window.api.checkUpdate();
-      setUpdate(result);
-      if (!manual) return;
-      if (result.error) setStatus(`Update check failed: ${result.error}`);
-      else if (result.newer) setStatus(`Version ${result.latest} is available.`);
-      else setStatus(`You are running the latest version, ${result.current}.`);
-    } catch (err) {
-      if (manual) setStatus(`Update check failed: ${String(err)}`);
-    }
-  }, []);
-
-  useEffect(() => {
-    // Delayed so a slow or blocked network never holds up the first paint.
-    if (!checkOnStart) return;
-    const timer = window.setTimeout(() => void checkForUpdate(false), 2500);
-    return () => window.clearTimeout(timer);
-    // Deliberately runs once per launch rather than on every settings change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const addShot = useCallback((shot: Shot) => {
@@ -968,9 +936,6 @@ export default function App() {
             <button className="action" onClick={() => setShowShortcuts(true)}>
               <span>Keyboard shortcuts</span>
             </button>
-            <button className="action" onClick={() => void checkForUpdate(true)}>
-              <span>Check for updates</span>
-            </button>
             <Hint
               text={
                 autostart.available
@@ -988,37 +953,11 @@ export default function App() {
                 Start with Windows
               </label>
             </Hint>
-            <Hint text="Asks GitHub once at startup whether a newer release exists. Nothing is downloaded or installed, you get a link to the release page. Turn it off to make no network requests at all.">
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={checkOnStart}
-                  onChange={(e) => setCheckOnStart(e.target.checked)}
-                />
-                Check on startup
-              </label>
-            </Hint>
             <p className="side-note">Everything stays on this device until you export it.</p>
           </section>
         </aside>
 
         <main className="workspace">
-          {update && update.newer && update.latest && update.latest !== dismissedVersion ? (
-            <div className="update-bar">
-              <span>
-                Version {update.latest} is available, this is {update.current}.
-              </span>
-              <span className="spacer" />
-              <button
-                className="primary"
-                onClick={() => void window.api.openRelease(update.url ?? '')}
-              >
-                Open release page
-              </button>
-              <button onClick={() => setDismissedVersion(update.latest ?? null)}>Dismiss</button>
-            </div>
-          ) : null}
-
           <div className="workspace-head">
             <span className="counts">
               {images.length} screenshots

@@ -30,6 +30,7 @@ const TOOLS: { id: ToolId; label: string }[] = [
   { id: 'step', label: 'Step' },
   { id: 'text', label: 'Text' },
   { id: 'highlight', label: 'Highlight' },
+  { id: 'marker', label: 'Marker' },
   { id: 'redact', label: 'Redact' },
   { id: 'crop', label: 'Crop' },
 ];
@@ -49,7 +50,43 @@ interface Snapshot {
 }
 
 function isShape(a: Annotation): a is ShapeAnnotation {
-  return a.type !== 'step' && a.type !== 'text';
+  return a.type !== 'step' && a.type !== 'text' && a.type !== 'marker';
+}
+
+/** Marker strokes are much wider than outlines at the same thickness setting. */
+function markerWidth(width: number): number {
+  return width * 3 + 6;
+}
+
+/**
+ * One smooth stroke through the recorded points. Drawing it as a single path
+ * keeps the transparency even where the stroke crosses itself.
+ */
+function drawMarker(ctx: CanvasRenderingContext2D, a: { color: string; width: number; points: { x: number; y: number }[] }) {
+  const pts = a.points;
+  if (pts.length === 0) return;
+  ctx.globalAlpha = 0.4;
+  ctx.strokeStyle = a.color;
+  ctx.fillStyle = a.color;
+  ctx.lineWidth = markerWidth(a.width);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  if (pts.length === 1) {
+    ctx.beginPath();
+    ctx.arc(pts[0].x, pts[0].y, ctx.lineWidth / 2, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length - 1; i += 1) {
+    const mx = (pts[i].x + pts[i + 1].x) / 2;
+    const my = (pts[i].y + pts[i + 1].y) / 2;
+    ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+  }
+  const last = pts[pts.length - 1];
+  ctx.lineTo(last.x, last.y);
+  ctx.stroke();
 }
 
 function stepRadius(width: number): number {
@@ -140,6 +177,8 @@ function drawAnnotation(ctx: CanvasRenderingContext2D, a: Annotation) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(String(a.n), a.x, a.y + r * 0.05);
+  } else if (a.type === 'marker') {
+    drawMarker(ctx, a);
   } else if (a.type === 'text') {
     ctx.font = `bold ${a.size}px ${a.font}`;
     ctx.textAlign = 'left';
@@ -187,6 +226,19 @@ function drawAnnotation(ctx: CanvasRenderingContext2D, a: Annotation) {
 }
 
 function bounds(ctx: CanvasRenderingContext2D, a: Annotation) {
+  if (a.type === 'marker') {
+    const pad = markerWidth(a.width) / 2 + 4;
+    const xs = a.points.map((p) => p.x);
+    const ys = a.points.map((p) => p.y);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    return {
+      x: minX - pad,
+      y: minY - pad,
+      w: Math.max(...xs) - minX + pad * 2,
+      h: Math.max(...ys) - minY + pad * 2,
+    };
+  }
   if (a.type === 'step') {
     return { x: a.x - a.radius, y: a.y - a.radius, w: a.radius * 2, h: a.radius * 2 };
   }
@@ -211,7 +263,7 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const dragRef = useRef<{
-    mode: 'create' | 'move' | 'handle' | 'crop';
+    mode: 'create' | 'move' | 'handle' | 'crop' | 'draw';
     id: string;
     handle?: string;
     ox: number;
@@ -515,6 +567,14 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
       return;
     }
 
+    if (tool === 'marker') {
+      const stroke: Annotation = { id: uid(), type: 'marker', color, width, points: [p] };
+      setAnnotations((prev) => [...prev, stroke]);
+      setSelectedId(null);
+      dragRef.current = { mode: 'draw', id: stroke.id, ox: p.x, oy: p.y, created: true };
+      return;
+    }
+
     const a: ShapeAnnotation = {
       id: uid(),
       type: tool as ShapeType,
@@ -554,6 +614,18 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
       return;
     }
 
+    if (drag.mode === 'draw') {
+      // Points closer than a couple of pixels add nothing but size.
+      if (Math.hypot(p.x - drag.ox, p.y - drag.oy) < 2 * viewScale()) return;
+      drag.moved = true;
+      drag.ox = p.x;
+      drag.oy = p.y;
+      setAnnotations((prev) =>
+        prev.map((a) => (a.id === drag.id && a.type === 'marker' ? { ...a, points: [...a.points, p] } : a)),
+      );
+      return;
+    }
+
     drag.moved = true;
     setAnnotations((prev) =>
       prev.map((a) => {
@@ -568,6 +640,9 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
         const dy = p.y - drag.oy;
         if (isShape(a)) {
           return { ...a, x1: a.x1 + dx, y1: a.y1 + dy, x2: a.x2 + dx, y2: a.y2 + dy };
+        }
+        if (a.type === 'marker') {
+          return { ...a, points: a.points.map((q) => ({ x: q.x + dx, y: q.y + dy })) };
         }
         return { ...a, x: a.x + dx, y: a.y + dy };
       }),
@@ -693,8 +768,12 @@ export default function Editor({ shot, index, total, onSave, onClose, onNavigate
   const chooseTool = (next: ToolId) => {
     // The highlighter is a marker pen, so it starts yellow, and leaving it
     // returns to the normal annotation colour.
-    if (next === 'highlight') setColor(HIGHLIGHT_COLOR);
-    else if (tool === 'highlight') setColor(DEFAULT_COLOR);
+    const penLike = (id: ToolId) => id === 'highlight' || id === 'marker';
+    if (penLike(next)) {
+      if (!penLike(tool)) setColor(HIGHLIGHT_COLOR);
+    } else if (penLike(tool)) {
+      setColor(DEFAULT_COLOR);
+    }
     setTool(next);
     if (next !== 'select') setCropDraft(null);
   };

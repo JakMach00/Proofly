@@ -45,6 +45,7 @@ export type ToolId =
   | 'text'
   | 'highlight'
   | 'redact'
+  | 'marker'
   | 'crop';
 
 export type ShapeType = 'arrow' | 'rect' | 'ellipse' | 'highlight' | 'redact';
@@ -85,7 +86,16 @@ export interface TextAnnotation {
   outline: boolean;
 }
 
-export type Annotation = ShapeAnnotation | StepAnnotation | TextAnnotation;
+/** A freehand stroke that follows the pointer, drawn like a highlighter pen. */
+export interface MarkerAnnotation {
+  id: string;
+  type: 'marker';
+  color: string;
+  width: number;
+  points: { x: number; y: number }[];
+}
+
+export type Annotation = ShapeAnnotation | StepAnnotation | TextAnnotation | MarkerAnnotation;
 
 export interface CaptureResult {
   data: Uint8Array;
@@ -107,14 +117,6 @@ export interface ExportResult {
   pdfPath: string;
   videoPaths: string[];
   usedDefaultFolder: boolean;
-}
-
-export interface UpdateInfo {
-  current: string;
-  latest?: string;
-  url?: string;
-  newer?: boolean;
-  error?: string;
 }
 
 export type RegionResult =
@@ -171,8 +173,6 @@ export interface ProoflyApi {
   saveImageAs: (data: Uint8Array, name: string) => Promise<string | null>;
   getAutostart: () => Promise<AutostartState>;
   setAutostart: (enabled: boolean) => Promise<AutostartState>;
-  checkUpdate: () => Promise<UpdateInfo>;
-  openRelease: (url: string) => Promise<boolean>;
 }
 
 declare global {

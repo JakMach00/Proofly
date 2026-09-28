@@ -40,6 +40,4 @@ contextBridge.exposeInMainWorld('api', {
   saveImageAs: (data, name) => ipcRenderer.invoke('image:save-as', { data, name }),
   getAutostart: () => ipcRenderer.invoke('autostart:get'),
   setAutostart: (enabled) => ipcRenderer.invoke('autostart:set', Boolean(enabled)),
-  checkUpdate: () => ipcRenderer.invoke('update:check'),
-  openRelease: (url) => ipcRenderer.invoke('update:open', url),
 });
