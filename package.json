@@ -1,11 +1,7 @@
 {
   "name": "proofly",
   "productName": "Proofly",
-<<<<<<< HEAD
   "version": "2.1.0",
-=======
-  "version": "2.0.1",
->>>>>>> 799da73d0600a519dd1facb1aab9d48d0550d461
   "description": "Proofly",
   "main": "electron/main.js",
   "author": "Jakub",
