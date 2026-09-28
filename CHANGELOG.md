@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.1
+
+- Removed the update check. Proofly no longer contacts GitHub, or anything else, at startup or on
+  demand, so it makes no network requests at all. The check could not work on networks that
+  block public hosts, and the "Check for updates" button, the "Check on startup" option and the
+  new version banner went with it.
+- The README explains the two downloads that reach beyond npm during installation and how to
+  point them at an internal mirror.
+
 ## 2.0.0
 
 - The application is now called Proofly. The window, the tray, notifications, the built package

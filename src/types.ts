@@ -109,14 +109,6 @@ export interface ExportResult {
   usedDefaultFolder: boolean;
 }
 
-export interface UpdateInfo {
-  current: string;
-  latest?: string;
-  url?: string;
-  newer?: boolean;
-  error?: string;
-}
-
 export type RegionResult =
   | { rect: Rect; displayId: string }
   | { data: Uint8Array; width: number; height: number; displayId: string };
@@ -171,8 +163,6 @@ export interface ProoflyApi {
   saveImageAs: (data: Uint8Array, name: string) => Promise<string | null>;
   getAutostart: () => Promise<AutostartState>;
   setAutostart: (enabled: boolean) => Promise<AutostartState>;
-  checkUpdate: () => Promise<UpdateInfo>;
-  openRelease: (url: string) => Promise<boolean>;
 }
 
 declare global {

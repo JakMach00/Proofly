@@ -462,20 +462,6 @@ kbd {
   flex: 1;
 }
 
-.update-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 16px;
-  font-size: 12px;
-  background: var(--accent-soft);
-  border-bottom: 1px solid var(--line);
-}
-
-.update-bar button {
-  padding: 5px 10px;
-}
-
 .empty-state {
   flex: 1;
   min-height: 0;

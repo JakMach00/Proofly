@@ -235,28 +235,39 @@ One accent colour is used, and only for the primary action of the current mode, 
 and positive status. Everything else is border and text weight, so there is never a question
 about which button is the main one.
 
-## Update check
+## Network access
 
-At startup the application asks the GitHub API whether `JakMach00/Proofly` has a newer
-published release, and shows a bar offering the release page when it does. Nothing is downloaded
-and nothing is installed: updating stays a manual unpack, which is the point, because installing
-an unsigned executable in the background is exactly the behaviour corporate security tooling
-blocks.
+Proofly makes no network requests of its own. Everything it captures stays on the machine until
+it is exported, and nothing is checked, downloaded or reported in the background. Earlier
+versions asked GitHub for new releases at startup; that was removed in 2.0.1 because it cannot
+work on networks that block public hosts, and a tool used on a locked down machine should not
+try to reach them.
 
-The request runs in the main process through `net.fetch`, for two reasons. The renderer content
-policy allows no outside connections, and `net.fetch` follows the system proxy settings, which
-is often the only route out of a corporate network. It carries an eight second timeout and every
-failure, including a missing release, a rate limit or no network at all, is silent unless the
-check was started by hand.
+Installing the dependencies is a different matter: `npm install` downloads the Electron binary
+from GitHub. On a network without access to it, see "Installing behind a corporate registry".
 
-A dismissed version is remembered, so the same release is not announced at every launch. The
-check can be turned off entirely with "Check on startup", and "Check for updates" runs it on
-demand.
+## Installing behind a corporate registry
 
-Full automatic updates were deliberately left out. `electron-updater` on Windows needs an NSIS
-installer rather than a zip, and an unsigned application that downloads and runs executables
-would be a poor fit for a machine under corporate policy. If a code signing certificate ever
-appears, that is the moment to revisit it.
+Two things in the install reach beyond npm and need attention on a restricted network.
+
+**Freshly published packages.** A registry that quarantines new releases can lack the newest
+version of a dependency for a few days, which shows up as `ETARGET` / "No matching version
+found". Waiting a day or two usually clears it. If it keeps happening for one package, pin a
+slightly older version of whatever pulls it in through `overrides` in `package.json`.
+
+**The Electron binary.** The `electron` package in the registry is only an installer of a few
+kilobytes. After installation it downloads the actual program, a zip of roughly 100 MB, from
+GitHub, and `electron-builder` fetches its Windows tooling from GitHub when packaging. With
+an internal mirror of those downloads, point the two variables at it before installing:
+
+```powershell
+$env:ELECTRON_MIRROR = "<mirror for Electron releases>/"
+$env:ELECTRON_BUILDER_BINARIES_MIRROR = "<mirror for electron-builder binaries>/"
+npm install
+```
+
+Keep the mirror addresses out of this repository. They belong in the environment of the machine
+or in a user level `.npmrc`, never in a committed file.
 
 ## Version number
 
