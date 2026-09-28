@@ -1,5 +1,6 @@
 # Changelog
 
+<<<<<<< HEAD
 ## 2.1.0
 
 - New Marker tool in the editor: a freehand, semi-transparent stroke that follows the mouse, for
@@ -11,6 +12,8 @@
   dependency scan of the runtime packages now comes back clean. PDF export was checked end to
   end after the upgrade: one page per screenshot, orientation per image, no text on the pages.
 
+=======
+>>>>>>> 799da73d0600a519dd1facb1aab9d48d0550d461
 ## 2.0.1
 
 - Removed the update check. Proofly no longer contacts GitHub, or anything else, at startup or on
