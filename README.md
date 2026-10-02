@@ -1,341 +1,135 @@
 # Proofly
 
-Desktop tool for documenting test runs: screenshots (whole screen or a region), annotations (arrows, boxes, numbered steps, text, highlight, redaction), screen
-recording tuned for small files, and PDF export.
+A small Windows tool for documenting test evidence: screenshots, annotations, screen
+recordings and a PDF export. Everything stays on the machine until it is exported, and the
+application makes no network requests.
 
-Stack: Electron 33, React 18, TypeScript, Vite, jsPDF.
+Version 3 is written in C# with WPF. Versions up to 2.1.0 were an Electron application.
 
-## Running it
+## Requirements
 
-```bash
-npm install
-npm run dev        # Vite plus Electron with hot reload
-npm run typecheck  # tsc --noEmit
-npm run dist       # production build, zip in release/
+To run:
+
+- Windows 10 or Windows 11, 64 bit
+- .NET Desktop Runtime 8 or newer (the entry `Microsoft.WindowsDesktop.App` in
+  `dotnet --info`), or the self-contained package, which needs no runtime at all
+- Visual C++ Redistributable 2015-2022 (x64), needed for recording only
+
+To build:
+
+- .NET SDK 8
+- Access to a NuGet feed that carries `ScreenRecorderLib`
+
+## Build and run
+
+```
+dotnet restore
+dotnet build -c Release
+dotnet run -c Release
 ```
 
-`npm run dist` produces `release/Proofly-<version>-win-x64.zip` containing the complete
-ready-to-run application folder, not a bare executable.
+A folder that can be copied to another machine:
 
-## Shortcuts
+```
+dotnet publish -c Release -o publish
+```
 
-Capture shortcuts are **global**: they work while the window is minimized or in the background,
-and they can be changed in the app (the "Keyboard shortcuts" button).
+The result needs the .NET Desktop Runtime 8 or newer on the target machine. To ship the
+runtime with the application instead, at the cost of a much larger folder:
 
-| Default | Action |
+```
+dotnet publish -c Release -o publish --self-contained true
+```
+
+### Building behind a corporate package proxy
+
+Point NuGet at the internal feed in the user level configuration, for example with
+`dotnet nuget add source <address> -n internal` and `dotnet nuget disable source nuget.org`.
+That file lives in the user profile. Do not add a `NuGet.Config` with an internal address to
+this repository, the `.gitignore` already keeps one out.
+
+## Features
+
+Capture
+
+- Full screen capture of the selected display at native resolution
+- Region capture on a frozen screen, copied to the clipboard and added to the gallery
+- Lock a region once and capture the same area repeatedly
+- Paste an image from the clipboard into the session
+- Optional mouse pointer in screenshots
+- The window can hide itself while capturing
+
+Sessions
+
+- Everything captured is written to disk at once and is still there after a crash or a restart
+- Named sessions, so several pieces of work can be kept apart and reopened later
+- Drag screenshots into the order they should have in the document
+
+Recording
+
+- Whole screen or a region, to MP4 (H.264)
+- Pause and resume
+- No audio, microphone, system audio, or both
+- Optional highlighting of mouse clicks
+- Three quality levels that set frame rate, bitrate and scale together
+
+Editor
+
+- Arrow, Box, Ellipse, numbered Step, Text, Highlight, Marker, Redact and Crop
+- Text is typed directly on the image, double click edits an existing label
+- Undo for every change, including deletions, moves and crops
+- Zoom and pan for precise work on large screenshots
+- Copy to the clipboard and Save as PNG or JPG without leaving the session
+
+Export
+
+- PDF or Word (.docx) with one page per screenshot and nothing else on the page
+- Recordings saved as separate files next to the document
+- Optional fixed output folder, files are never overwritten there
+
+Other
+
+- Global shortcuts that can be rebound in the app
+- Tray icon, closing the window keeps the app running there
+- Optional start with Windows
+- Dark and light theme
+
+## Default shortcuts
+
+| Action | Shortcut |
 | --- | --- |
-| Ctrl+Shift+F9 | capture the selected screen |
-| Print Screen | capture a region, straight to the clipboard |
-| Ctrl+Shift+F11 | start and stop recording |
-| Ctrl+Shift+F12 | save the PDF and recordings |
-| Delete | delete the selected annotation (in the editor) |
-| Ctrl+Z | undo the last annotation |
-| Ctrl+S | save the annotations of the open screenshot |
-| Ctrl+C | copy the open screenshot, as it looks now, to the clipboard |
-| Left / Right | previous or next screenshot in the editor |
-
-Annotations stay editable after they are drawn. A selected shape shows white handles: the two
-ends of an arrow, the four corners of a box, an ellipse, a highlight or a redaction. Dragging a
-handle reshapes it, dragging the body moves it, and the colour, thickness, step number and text
-controls change the selected item live instead of only affecting the next one.
-
-Undo keeps a real history, so it steps back through deletions, moves, property changes and
-crops, not just the last shape drawn. Text is edited in place on the image: placing a box starts
-typing immediately, a double click reopens an existing label, Enter adds a line, and Escape or a
-click elsewhere finishes. The editing field copies the label's font, size and colour at the
-current zoom, so what you type sits exactly where the finished text will be painted. Text also
-has its own size control, an optional outline and a choice of fonts. The Crop tool trims the screenshot itself, and since
-annotations are stored in the coordinates of the original image, cropping never moves them and
-"Reset crop" restores the full frame.
-
-Clicking an existing step or text label while the same tool is active picks it up rather than
-stacking a new one on top of it.
-
-The Marker draws a freehand, semi-transparent stroke along the mouse path, for underlining or
-circling by hand. Each stroke is drawn as one smooth path, so its transparency stays even where
-it crosses itself, and it behaves like any other annotation for Select, Delete and Undo. Undoing or deleting the most recent step hands its number back,
-so the sequence continues from the right place. The highlighter starts yellow. Leaving a
-screenshot with unsaved annotations asks first whether to save, discard or stay.
-
-Two rules drive these defaults. A global shortcut is taken away from every other application,
-so plain Ctrl combinations are a bad idea: Ctrl+S as a global shortcut would stop saving files
-in Word and VS Code. And Ctrl+Alt is what AltGr sends on Polish, German and other international
-layouts, so Ctrl+Alt+S would fire every time the user types a Polish "s with acute". The
-settings dialog flags both problems if you rebind to such a combination anyway.
-
-With "Hide Proofly while capturing" enabled, starting a recording minimizes the window so it
-does not end up in the material. That matters most for region recording, where selecting the
-area needs a visible window first.
-
-A capture triggered by a shortcut never brings the window to the front. If the window was
-minimized it stays minimized, and if it was visible it comes back unfocused, so the application
-you were actually working in keeps the keyboard. Region capture is the exception: it restores
-and focuses the window, because selecting a region needs a visible interface.
-
-The interface ships with a dark and a light theme. The initial choice follows the system
-setting, the toggle sits in the top right of the sidebar, and the pick is remembered.
-
-## How it works
-
-- **Screen list**: `desktopCapturer.getSources` in the main process, joined with
-  `screen.getAllDisplays()` for native resolutions. The primary screen is selected by default.
-  Source names are generated by the application rather than taken from `source.name`, because
-  the operating system returns them localized (a Polish Windows reports "Caly ekran").
-- **Screenshots**: taken through `desktopCapturer` with `thumbnailSize` set to the native
-  resolution, so the image is not resampled by the WebRTC pipeline. A region is cropped from a
-  frozen frame on a canvas, which makes the selection precise because the image does not move.
-- **Recording**: a `MediaStream` from `getUserMedia` with `chromeMediaSource` constraints, with
-  an automatic fallback to `getDisplayMedia` served by `setDisplayMediaRequestHandler`. Region
-  recording goes through a canvas and `canvas.captureStream()`.
-- **Recording size**: `MediaRecorder` with VP9 (VP8 fallback) and an explicit bitrate. The "Low"
-  profile is 500 kbps, 10 fps and 0.6 scale, roughly 3 to 4 MB per minute on a 1080p screen.
-- **PDF**: jsPDF, one page per screenshot, orientation derived from the image aspect ratio.
-  Pages carry the image and nothing else, no file names and no timestamps, so the document is
-  exactly what was captured. Recordings never enter the PDF, they are exported as their own
-  files.
-
-## Known limits
-
-- MP4 recording relies on the H.264 encoder being present. When it is not, the recording falls
-  back to WebM and the status bar says so, rather than failing.
-- **The PDF does not contain playable video.** Embedding video in a PDF (RichMedia) only works
-  in Adobe Acrobat and is ignored by browsers, so the video is deliberately saved as a separate
-  file next to the PDF.
-- Session material is held in renderer memory. With dozens of 4K screenshots or very long
-  recordings, export more often.
-- The mouse cursor is not included in screenshots or recordings, because `desktopCapturer`
-  does not draw it.
-- Windows reserves some combinations at the system level, Win+Shift+S among them, and no
-  application can take those over.
-- The window runs with `backgroundThrottling` disabled, otherwise Chromium would slow the
-  timers of a minimized window and stall the recording loop and background captures.
-
-## Speeding a recording up
-
-Opening a recording gives a speed row: 1x, 1.1x, 1.25x, 1.5x, 1.75x and 2x. Picking a value
-changes the preview immediately through `playbackRate`, which touches nothing on disk.
-"Apply Nx to the file" re-encodes the clip so the exported file really is shorter, which is the
-point: a reviewer watches 45 seconds instead of 90.
-
-The conversion plays the source into a canvas at the chosen rate and records the canvas stream,
-so it runs at playback speed. A 90 second clip at 2x takes about 45 seconds to convert, and a
-progress figure is shown while it runs. The result replaces the clip in the gallery and the file
-name gains a marker, `recording_20260908_141500_2x.webm`. The swap only happens once the new
-file exists, so a failed conversion leaves the original untouched, but the original speed cannot
-be recovered afterwards.
-
-Re-encoding costs some quality, since VP9 is being encoded from VP9. The bitrate is raised by
-about a third to compensate, and the file still ends up smaller than the original because the
-duration drops.
-
-Audio survives the conversion. The element is routed into an offline audio destination instead
-of the speakers, so nothing is heard while converting, and `preservesPitch` keeps speech at its
-normal pitch at higher rates.
-
-## Video format
-
-The Format selector offers MP4 (H.264) or WebM (VP9). MP4 is the default because Windows Media
-Player Legacy cannot open WebM at all, and a recording that a developer cannot play is worth
-nothing regardless of its size.
-
-No ffmpeg is involved. Chromium has written MP4 from `MediaRecorder` since version 126 and
-Electron 33 carries Chromium 130 with proprietary codecs enabled, so H.264 is produced directly.
-Support is still checked at runtime through `MediaRecorder.isTypeSupported`, because the encoder
-is not guaranteed on every machine, and a missing one drops the recording to WebM with a note on
-the status bar instead of failing.
-
-The trade-off is size. H.264 needs roughly 30 to 50 percent more bitrate than VP9 for the same
-image, so WebM stays available for material that is only ever watched inside a browser. The
-speed conversion keeps whatever container the clip already uses.
-
-## Locking a region
-
-Full screen capture can be pinned to one area. "Lock a region" in the Capture section opens the
-same overlay, and from then on the capture button and its shortcut take only that area, which
-matters when a test run needs the same panel captured twenty times in a row. The button says
-"Locked region" while it is set and Reset restores the whole screen. Locked captures go to the
-gallery only and never to the clipboard, because a series of twenty would flood it; the editor's
-Copy button handles the one screenshot that actually needs pasting.
-
-The lock belongs to the display it was selected on and is only applied while that display is the
-selected source. It is not remembered between runs, because a saved rectangle would silently
-point somewhere else after a resolution change.
-
-## Region capture and Print Screen
-
-Print Screen opens a frozen full screen overlay on the display under the pointer. Drag to
-select, Escape or a right click cancels, and a plain click starts over rather than closing. The
-selection lands in the Windows clipboard and in the gallery. The overlay reports its rectangle in
-physical pixels, so the result is sharp on scaled displays.
-
-Windows keeps Print Screen for itself while Settings, Accessibility, Keyboard, "Use the Print
-screen key to open screen capture" is on. Switch that off, otherwise the shortcut settings
-report the key as taken by another program.
-
-## Running in the background
-
-Print Screen only works while the app runs, so the window X hides the app from the taskbar and
-leaves it in the tray rather than quitting, with a tray notice the first time in a session.
-Minimize behaves as usual and sends the window to the taskbar. The tray menu offers opening the window, capturing a region and quitting. Only
-one copy runs at a time: launching it again brings the existing window forward instead of
-starting a second process that would fight over the global shortcuts.
-
-"Start with Windows" registers a login item that starts the app hidden in the tray. It points
-at the executable currently running, so after moving the unpacked folder switch the option off
-and on again. It is unavailable when running from source.
-
-## Duration metadata
-
-MediaRecorder writes no overall duration into the files it produces. Players then show a length
-such as 21452:24:56, seeking does not work and trimming is impossible. Every file this
-application writes is repaired before it is handed on: WebM gets the missing metadata section
-appended, and for MP4 the duration is written into the mvhd, tkhd and mdhd boxes. A fragmented
-MP4 with no moov is left alone rather than being corrupted by a guess.
-
-## Audio
-
-The Audio selector in the Recording section offers no audio (the default), microphone, system
-audio, or both mixed together. Windows decides which devices those are: the microphone is the
-default input device, and system audio is whatever the machine is playing.
-
-The two paths are not the same mechanism. The microphone comes from `getUserMedia`. System
-audio only arrives through `getDisplayMedia` with the main process answering `audio: 'loopback'`
-in `setDisplayMediaRequestHandler`, so the request is made separately and the video track that
-comes with it is dropped immediately. Mixing both goes through an `AudioContext` with two
-sources feeding one destination.
-
-Audio failures never abort a recording. A refused microphone permission or a machine with no
-loopback device leaves the capture running without sound and puts the reason on the status bar,
-because losing a take over a missing microphone would be worse than losing the sound.
-
-Windows 11 has a per-application microphone switch in Settings, Privacy and security,
-Microphone. An unsigned application that has never been granted access will simply fail there,
-and the status bar will say so.
-
-## Exporting
-
-The primary export writes a PDF of the screenshots plus every recording as separate files next
-to it. The PDF holds screenshots only. With no screenshots in the gallery there is nothing to document, so the button becomes
-"Save recordings" and skips the PDF entirely, asking for a folder rather than a document name.
-When screenshots and recordings sit side by side, "Save recordings only" writes just the clips,
-which is what you want when a recording made during a screenshot session is worth sending on
-before the rest of the documentation is finished. That path keeps the clip's own file name,
-while a full export names the recordings after the PDF so they stay grouped.
-
-## Interface
-
-The window splits into four fixed areas: a title bar with the Screenshot and Record switch, a
-sidebar of settings, the workspace, and a status bar carrying the last action and the running
-version. Only the sidebar and the workspace scroll, and they scroll independently, so the status
-bar and the primary actions stay reachable at 1024 x 768.
-
-The sidebar is grouped into Source, Capture, Recording, Output, Export and Utilities, numbered
-by a CSS counter so the markup carries no numbers to keep in sync.
-
-The title bar holds the application name and an animated light and dark toggle. The empty
-workspace offers both first actions, capture and record, with their shortcuts.
-
-One accent colour is used, and only for the primary action of the current mode, active states
-and positive status. Everything else is border and text weight, so there is never a question
-about which button is the main one.
-
-## Network access
-
-Proofly makes no network requests of its own. Everything it captures stays on the machine until
-it is exported, and nothing is checked, downloaded or reported in the background. Earlier
-versions asked GitHub for new releases at startup; that was removed in 2.0.1 because it cannot
-work on networks that block public hosts, and a tool used on a locked down machine should not
-try to reach them.
-
-Installing the dependencies is a different matter: `npm install` downloads the Electron binary
-from GitHub. On a network without access to it, see "Installing behind a corporate registry".
-
-## Installing behind a corporate registry
-
-Two things in the install reach beyond npm and need attention on a restricted network.
-
-**Freshly published packages.** A registry that quarantines new releases can lack the newest
-version of a dependency for a few days, which shows up as `ETARGET` / "No matching version
-found". Waiting a day or two usually clears it. If it keeps happening for one package, pin a
-slightly older version of whatever pulls it in through `overrides` in `package.json`.
-
-**The Electron binary.** The `electron` package in the registry is only an installer of a few
-kilobytes. After installation it downloads the actual program, a zip of roughly 100 MB, from
-GitHub, and `electron-builder` fetches its Windows tooling from GitHub when packaging. With
-an internal mirror of those downloads, point the two variables at it before installing:
-
-```powershell
-$env:ELECTRON_MIRROR = "<mirror for Electron releases>/"
-$env:ELECTRON_BUILDER_BINARIES_MIRROR = "<mirror for electron-builder binaries>/"
-npm install
-```
-
-Keep the mirror addresses out of this repository. They belong in the environment of the machine
-or in a user level `.npmrc`, never in a committed file.
-
-## Version number
-
-The status bar shows the running version in its bottom right corner. It comes from the
-`version` field in `package.json`, injected by Vite at build time as `__APP_VERSION__`, so there
-is one place to change and nothing to keep in sync by hand.
-
-Releasing therefore means bumping `version` in `package.json`, adding the entry to
-`CHANGELOG.md`, and tagging `v<version>`. The tag and the field have to match, because the
-release artifact is named from `package.json` while the workflow triggers on the tag.
-
-## Tooltips
-
-Every option in the sidebar carries a small info icon and explains itself after the pointer
-rests on it for a second. The icon can also be focused with the keyboard, which shows the same
-text immediately. The
-delay is deliberate: a tooltip that appears instantly turns into noise while the mouse is only
-crossing the panel. Tooltips render in a portal so the panel cannot clip them, and they flip to
-the other side when they would run off the screen edge.
-
-## Export location
-
-By default every export asks where to save, which is the behaviour of a tool used across
-several projects. Ticking "Always use one folder" in the Export section picks a folder once and
-reuses it, so later exports write straight to disk without a dialog. The option is off until it
-is switched on, and unticking it brings the dialog back.
-
-Files are never overwritten: an export landing on an existing name gets a counter, so
-`documentation_20260908_141500.pdf` becomes `documentation_20260908_141500 (2).pdf`. If the
-chosen folder disappears, for example an unmounted network share, the export falls back to the
-dialog and says so on the status bar.
-
-"Open output folder" uses `shell.openPath` rather than `shell.showItemInFolder`, because the
-latter returns nothing and fails silently on Windows. The folder opens and any failure is
-reported on the status bar.
-
-## Icon
-
-`build/icon.ico` carries seven resolutions. From 48 pixels up it uses the full artwork with
-the camcorder wedge; at 32, 24 and 16 pixels it switches to a simplified version without the
-wedge and with thicker strokes, because the detailed one turns into mush at taskbar size.
-`build/icon.png` is the 1024 pixel master to regenerate from.
-
-Windows caches icons aggressively. If an old icon survives a rebuild, unpack the zip into a
-folder with a different name rather than overwriting the previous one.
-
-## Licences
-
-Every package shipped inside the application is under a permissive licence (MIT, or a choice
-that includes MIT or Apache-2.0), and nothing requires a commercial licence. Electron is MIT and
-brings Chromium's third party notices with it: electron-builder places `LICENSE.electron.txt`
-and `LICENSES.chromium.html` in the packaged folder, and they should stay there. Build tools
-such as TypeScript, Vite and electron-builder are not part of the shipped application.
-
-## Layout
+| Capture whole screen | Ctrl+Shift+F9 |
+| Capture region | Print Screen |
+| Start and stop recording | Ctrl+Shift+F11 |
+| Pause and resume recording | Ctrl+Shift+F10 |
+| Save the document and recordings | Ctrl+Shift+F12 |
+
+Print Screen belongs to Windows while Settings, Accessibility, Keyboard, "Use the Print
+screen key to open screen capture" is switched on.
+
+## Project layout
 
 ```
-build/                  application icon (ico for packaging, png master)
-electron/main.js        main process: window, screen list, screenshots, file writing
-electron/preload.js     contextBridge bridge (window.api)
-src/App.tsx             application state, shortcuts, export
-src/components/         RegionSelector, Editor, Gallery, ShortcutSettings
-src/lib/capture.ts      screen stream, screenshots, cropping, thumbnails
-src/lib/recorder.ts     MediaRecorder with cropping and scaling
-src/lib/shortcuts.ts    accelerator parsing and defaults
-src/lib/pdf.ts          PDF building
+Core/        PDF and Word writers, session store, settings, shortcut parsing, file naming
+             (no UI dependencies)
+Models/      Session items and annotations
+Services/    Screen capture, recording, shortcuts, tray, autostart, themes
+Controls/    Gallery panel and the drawing surface of the editor
+Views/       Editor, player, shortcut settings, region overlay, confirmation dialog
+Themes/      Colours and control styles
 ```
+
+## Where things are stored
+
+- Settings: `%APPDATA%\Proofly\settings.json`
+- Sessions: `%LOCALAPPDATA%\Proofly\Sessions`, one folder per session
+
+A session stays on disk until it is deleted in the app with "Delete session". Screenshots and
+recordings of confidential systems are therefore kept on the machine for as long as their
+session exists, so delete sessions that are no longer needed.
+
+## Third party
+
+- [ScreenRecorderLib](https://github.com/sskodje/ScreenRecorderLib), MIT licence
+
+Recordings use H.264 through the encoder that ships with Windows.

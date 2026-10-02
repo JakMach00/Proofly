@@ -1,0 +1,86 @@
+<UserControl x:Class="Proofly.Views.ShortcutsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="True" FocusVisualStyle="{x:Null}" Background="{DynamicResource Bg}"
+             PreviewKeyDown="Shortcuts_PreviewKeyDown" PreviewKeyUp="Shortcuts_PreviewKeyUp">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Padding="14,9" Background="{DynamicResource Panel}"
+                BorderBrush="{DynamicResource Line}" BorderThickness="0,0,0,1">
+            <DockPanel LastChildFill="False">
+                <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" Text="Keyboard shortcuts" />
+                <Button DockPanel.Dock="Right" Margin="8,0,0,0" Focusable="False"
+                        Style="{StaticResource PrimaryButton}" Content="Close" Click="Close_Click" />
+                <Button DockPanel.Dock="Right" Focusable="False" Content="Restore defaults"
+                        Click="Defaults_Click" />
+            </DockPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="14,30,14,20" HorizontalAlignment="Center">
+                <Border MinWidth="560" CornerRadius="10" BorderThickness="1" Background="{DynamicResource Panel}"
+                        BorderBrush="{DynamicResource Line}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="0" Grid.ColumnSpan="3" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource Line}" />
+                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="12,9" VerticalAlignment="Center"
+                                   FontSize="13" Foreground="{DynamicResource Text}" Text="Capture whole screen" />
+                        <Button x:Name="KeyCapture" Grid.Row="0" Grid.Column="1" Margin="12,9" MinWidth="190"
+                                Tag="capture" FontFamily="{StaticResource MonoFont}" Click="Key_Click" />
+                        <TextBlock x:Name="NoteCapture" Grid.Row="0" Grid.Column="2" Margin="0,9,12,9"
+                                   VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource Danger}" />
+                        <Border Grid.Row="1" Grid.ColumnSpan="3" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource Line}" />
+                        <TextBlock Grid.Row="1" Grid.Column="0" Margin="12,9" VerticalAlignment="Center"
+                                   FontSize="13" Foreground="{DynamicResource Text}" Text="Capture region" />
+                        <Button x:Name="KeyRegion" Grid.Row="1" Grid.Column="1" Margin="12,9" MinWidth="190"
+                                Tag="region" FontFamily="{StaticResource MonoFont}" Click="Key_Click" />
+                        <TextBlock x:Name="NoteRegion" Grid.Row="1" Grid.Column="2" Margin="0,9,12,9"
+                                   VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource Danger}" />
+                        <Border Grid.Row="2" Grid.ColumnSpan="3" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource Line}" />
+                        <TextBlock Grid.Row="2" Grid.Column="0" Margin="12,9" VerticalAlignment="Center"
+                                   FontSize="13" Foreground="{DynamicResource Text}" Text="Start and stop recording" />
+                        <Button x:Name="KeyRecord" Grid.Row="2" Grid.Column="1" Margin="12,9" MinWidth="190"
+                                Tag="record" FontFamily="{StaticResource MonoFont}" Click="Key_Click" />
+                        <TextBlock x:Name="NoteRecord" Grid.Row="2" Grid.Column="2" Margin="0,9,12,9"
+                                   VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource Danger}" />
+                        <Border Grid.Row="3" Grid.ColumnSpan="3" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource Line}" />
+                        <TextBlock Grid.Row="3" Grid.Column="0" Margin="12,9" VerticalAlignment="Center"
+                                   FontSize="13" Foreground="{DynamicResource Text}" Text="Pause and resume recording" />
+                        <Button x:Name="KeyPause" Grid.Row="3" Grid.Column="1" Margin="12,9" MinWidth="190"
+                                Tag="pause" FontFamily="{StaticResource MonoFont}" Click="Key_Click" />
+                        <TextBlock x:Name="NotePause" Grid.Row="3" Grid.Column="2" Margin="0,9,12,9"
+                                   VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource Danger}" />
+                        <Border Grid.Row="4" Grid.ColumnSpan="3" BorderThickness="0" BorderBrush="{DynamicResource Line}" />
+                        <TextBlock Grid.Row="4" Grid.Column="0" Margin="12,9" VerticalAlignment="Center"
+                                   FontSize="13" Foreground="{DynamicResource Text}" Text="Save the document and recordings" />
+                        <Button x:Name="KeyExport" Grid.Row="4" Grid.Column="1" Margin="12,9" MinWidth="190"
+                                Tag="export" FontFamily="{StaticResource MonoFont}" Click="Key_Click" />
+                        <TextBlock x:Name="NoteExport" Grid.Row="4" Grid.Column="2" Margin="0,9,12,9"
+                                   VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource Danger}" />
+                    </Grid>
+                </Border>
+
+                <TextBlock MaxWidth="620" Margin="0,14,0,0" FontSize="12" LineHeight="20" TextWrapping="Wrap"
+                           Foreground="{DynamicResource Muted}"
+                           Text="These shortcuts are global and work while the window is minimized or in the background. Click a field, press the combination, Escape cancels, Delete clears the binding. Avoid Ctrl+Alt combinations: on Polish and other international layouts AltGr sends Ctrl+Alt, so AltGr+S would trigger a capture while typing an accented character. Windows also reserves some combinations for itself, Win+Shift+S among them, and no application can take those over. Print Screen belongs to Windows as long as Settings, Accessibility, Keyboard, &quot;Use the Print screen key to open screen capture&quot; is on, so switch that off for Proofly to receive the key." />
+                <TextBlock x:Name="MessageText" MaxWidth="620" Margin="0,12,0,0" FontSize="12" TextWrapping="Wrap"
+                           Foreground="{DynamicResource Warn}" />
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

@@ -1,5 +1,51 @@
 # Changelog
 
+## 3.0.0
+
+Proofly is rewritten in C# with WPF on .NET 8. The Electron and Node toolchain is gone, the
+application builds with the .NET SDK and needs one NuGet package.
+
+New
+
+- Sessions. Evidence is kept in named sessions that live on disk from the moment something
+  is captured. A session survives a crash or a restart, and a saved session can be reopened
+  later to add to it and save the document again. New, Rename and Delete session sit above
+  the gallery.
+- After saving a document a fresh session becomes current and the saved one stays in the
+  list. This replaces "Clear after saving the PDF".
+- Screenshots can be dragged into a different order. Every card shows the page it will be on
+  in the document. While dragging, the card fades and a small copy follows the pointer, the
+  other cards slide to their new places and the moved card is marked for a moment.
+- Word export. The document can be saved as PDF or as .docx, one page per screenshot in both.
+- Paste from the clipboard with Ctrl+V or the sidebar button, for copied images and for image
+  files copied in Explorer.
+- Zoom in the editor: Ctrl with the mouse wheel, the buttons in the options row, Ctrl+0 to
+  fit and Ctrl+1 for 100%. The wheel scrolls a zoomed image, the middle button drags it.
+- Recordings can be paused and resumed, from the sidebar or with Ctrl+Shift+F10. The paused
+  part is simply not in the file.
+- Mouse clicks can be highlighted in recordings, with a ring that stays visible for a good
+  half second.
+- The mouse pointer can be included in screenshots.
+- Dark text gets a white outline instead of a dark one.
+
+Changed
+
+- The exported document is named after the session.
+- Screenshots are stored as files instead of being held in memory, which keeps long sessions
+  light.
+- The PDF and the Word file are written by small modules inside the application, so no
+  document library is needed.
+- Recording uses ScreenRecorderLib, which encodes with Media Foundation. Recordings are MP4
+  (H.264) only, the WebM option is removed because Windows has no built in VP9 encoder.
+- Typing into a new text label and placing it are one undo step, so undo no longer leaves an
+  empty label behind.
+- Saving the editor updates the size shown on the gallery card after a crop.
+
+Removed
+
+- Trimming a recording and saving a faster copy of it. Pausing while recording covers most of
+  what trimming was used for, and the Windows Photos app trims a finished file.
+
 ## 2.1.0
 
 - New Marker tool in the editor: a freehand, semi-transparent stroke that follows the mouse, for

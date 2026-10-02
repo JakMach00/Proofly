@@ -1,4 +1,13 @@
-node_modules/
-dist/
-release/
+bin/
+obj/
+publish/
+.vs/
+*.user
 *.log
+# A NuGet.Config next to the project can carry an internal feed address.
+# Keep it in the user profile instead, never in the repository.
+NuGet.Config
+nuget.config
+# Local assistant notes, not part of the project.
+CLAUDE.md
+.claude/

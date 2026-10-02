@@ -1,0 +1,25 @@
+<Window x:Class="Proofly.Views.RegionOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Proofly region" WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False"
+        Topmost="True" Background="Black" Cursor="Cross" WindowStartupLocation="Manual"
+        UseLayoutRounding="True" SnapsToDevicePixels="True">
+    <Grid x:Name="Root">
+        <!-- The screen as it looked when the selection started. -->
+        <Image x:Name="Frozen" Stretch="Fill" />
+        <!-- Dims everything except the selected area. -->
+        <Path x:Name="Dim" Fill="#6B000000" IsHitTestVisible="False" />
+        <Rectangle x:Name="SelectionBox" HorizontalAlignment="Left" VerticalAlignment="Top"
+                   Stroke="#B6F24A" StrokeThickness="2" Visibility="Collapsed" IsHitTestVisible="False" />
+        <Border x:Name="SizeLabel" HorizontalAlignment="Left" VerticalAlignment="Top" Padding="7,2"
+                CornerRadius="4" Background="#BF000000" Visibility="Collapsed" IsHitTestVisible="False">
+            <TextBlock x:Name="SizeText" Foreground="White" FontSize="12"
+                       FontFamily="Cascadia Mono, Consolas, Courier New" />
+        </Border>
+        <Border x:Name="HintLabel" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,18,0,0"
+                Padding="14,7" CornerRadius="7" Background="#B8000000" IsHitTestVisible="False">
+            <TextBlock Foreground="White" FontSize="13" FontFamily="Segoe UI"
+                       Text="Drag to select an area. Esc or right click cancels." />
+        </Border>
+    </Grid>
+</Window>

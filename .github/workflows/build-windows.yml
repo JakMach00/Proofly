@@ -6,34 +6,35 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-dotnet@v4
         with:
-          node-version: 20
-          cache: npm
+          dotnet-version: '8.0.x'
 
-      - run: npm ci
+      # Small package, needs the .NET Desktop Runtime 8 or newer on the machine.
+      - name: Publish
+        run: dotnet publish Proofly.csproj -c Release -o publish/standard
 
-      - run: npm run typecheck
+      # Large package that carries its own runtime and needs nothing installed.
+      - name: Publish with the runtime included
+        run: dotnet publish Proofly.csproj -c Release -o publish/self-contained --self-contained true
 
-      - run: npm run dist
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Package
+        shell: pwsh
+        run: |
+          Compress-Archive -Path publish\standard\* -DestinationPath "Proofly-${{ github.ref_name }}-win-x64.zip"
+          Compress-Archive -Path publish\self-contained\* -DestinationPath "Proofly-${{ github.ref_name }}-win-x64-self-contained.zip"
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Proofly-windows
-          path: release/*.zip
-
-      - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: release/*.zip
+          files: Proofly-*.zip

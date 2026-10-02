@@ -1,0 +1,464 @@
+<Window x:Class="Proofly.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:Proofly.Controls"
+        xmlns:views="clr-namespace:Proofly.Views"
+        Title="Proofly" Width="1280" Height="840" MinWidth="960" MinHeight="720"
+        WindowStartupLocation="CenterScreen" Icon="Assets/icon.ico"
+        Background="{DynamicResource Bg}" Foreground="{DynamicResource Text}"
+        FontFamily="Segoe UI" FontSize="14" UseLayoutRounding="True" SnapsToDevicePixels="True">
+    <Grid>
+        <Grid x:Name="Shell">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- ======================= top bar ======================= -->
+            <Border Grid.Row="0" Padding="14,8" Background="{DynamicResource Panel}"
+                    BorderBrush="{DynamicResource Line}" BorderThickness="0,0,0,1">
+                <DockPanel LastChildFill="False">
+                    <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" FontWeight="SemiBold"
+                               Text="Proofly" />
+                    <ToggleButton x:Name="ThemeToggle" DockPanel.Dock="Left" Margin="14,0,0,0"
+                                  Style="{StaticResource ThemeToggle}" Content="Dark" Click="ThemeToggle_Click"
+                                  ToolTip="Switch colour theme" />
+                    <StackPanel x:Name="RecLive" DockPanel.Dock="Right" Orientation="Horizontal"
+                                VerticalAlignment="Center" Visibility="Collapsed">
+                        <Ellipse x:Name="RecLiveDot" Width="8" Height="8" Margin="0,0,7,0"
+                                 Fill="{DynamicResource Danger}" VerticalAlignment="Center" />
+                        <TextBlock x:Name="RecLiveText" FontSize="12" Foreground="{DynamicResource Danger}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="284" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- ======================= sidebar ======================= -->
+                <Border Grid.Column="0" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}"
+                        BorderThickness="0,0,1,0">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="14,16,14,20">
+
+                            <!-- 01 Source -->
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <TextBlock Style="{StaticResource SectionNumber}" Text="01" />
+                                    <TextBlock Style="{StaticResource SectionTitle}" Text="SOURCE" />
+                                </StackPanel>
+                                <HeaderedContentControl Style="{StaticResource HintField}" Header="Display"
+                                                        ToolTip="The screen every capture and recording is taken from. The list rebuilds itself when a display changes resolution or is plugged in.">
+                                    <ComboBox x:Name="DisplayCombo" SelectionChanged="DisplayCombo_SelectionChanged" />
+                                </HeaderedContentControl>
+                                <ContentControl Style="{StaticResource Hint}" Margin="0,8,0,0"
+                                                ToolTip="The window is hidden for a moment so it does not appear in the screenshot. It is left alone when it is minimized or sitting on another monitor, and it never takes focus back.">
+                                    <CheckBox x:Name="HideCheck" Content="Hide Proofly while capturing"
+                                              Click="HideCheck_Click" />
+                                </ContentControl>
+                                <ContentControl Style="{StaticResource Hint}" Margin="0,6,0,0"
+                                                ToolTip="Draws the mouse pointer into screenshots, which helps when the evidence is a hover state or the place that was clicked. Recordings always show the pointer.">
+                                    <CheckBox x:Name="CursorCheck" Content="Include the mouse pointer"
+                                              Click="CursorCheck_Click" />
+                                </ContentControl>
+                            </StackPanel>
+
+                            <!-- 02 Capture -->
+                            <StackPanel Margin="0,18,0,0">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <TextBlock Style="{StaticResource SectionNumber}" Text="02" />
+                                    <TextBlock Style="{StaticResource SectionTitle}" Text="CAPTURE" />
+                                </StackPanel>
+                                <Button x:Name="CaptureFullButton" Style="{StaticResource ActionButton}"
+                                        Content="Full screen" Click="CaptureFull_Click" />
+                                <Button x:Name="CaptureRegionButton" Style="{StaticResource ActionButton}"
+                                        Margin="0,8,0,0" Content="Selected region" Click="CaptureRegion_Click" />
+                                <ContentControl x:Name="LockHint" Style="{StaticResource Hint}" Margin="0,8,0,0"
+                                                ToolTip="Select an area once and every following full screen capture takes just that area, which saves reselecting the same part of the screen for every step. Reset brings the whole screen back.">
+                                    <Button x:Name="LockButton" Style="{StaticResource ActionButton}"
+                                            Content="Lock a region" Click="LockRegion_Click" />
+                                </ContentControl>
+                                <Button x:Name="PasteButton" Style="{StaticResource ActionButton}" Margin="0,8,0,0"
+                                        Content="Paste from clipboard" Tag="Ctrl+V" Click="Paste_Click" />
+                                <Grid x:Name="LockedRow" Margin="0,8,0,0" Visibility="Collapsed">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Padding="8,6" CornerRadius="7" BorderThickness="1"
+                                            Background="{DynamicResource Panel2}" BorderBrush="{DynamicResource Line}">
+                                        <TextBlock x:Name="LockedText" FontSize="12" TextTrimming="CharacterEllipsis"
+                                                   Foreground="{DynamicResource Muted}" />
+                                    </Border>
+                                    <Button Grid.Column="1" Margin="6,0,0,0" Padding="10,6" Content="Reset"
+                                            Click="ResetLock_Click" />
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- 03 Recording -->
+                            <StackPanel Margin="0,18,0,0">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <TextBlock Style="{StaticResource SectionNumber}" Text="03" />
+                                    <TextBlock Style="{StaticResource SectionTitle}" Text="RECORDING" />
+                                </StackPanel>
+                                <Button x:Name="RecordFullButton" Style="{StaticResource ActionButton}"
+                                        Content="Full screen" Click="RecordFull_Click" />
+                                <Button x:Name="RecordRegionButton" Style="{StaticResource ActionButton}"
+                                        Margin="0,8,0,0" Content="Selected region" Click="RecordRegion_Click" />
+                                <Button x:Name="RecordStopButton" Style="{StaticResource ActionDangerButton}"
+                                        Content="Stop 00:00" Visibility="Collapsed" Click="RecordStop_Click" />
+                                <Button x:Name="RecordPauseButton" Style="{StaticResource ActionButton}"
+                                        Margin="0,8,0,0" Content="Pause" Visibility="Collapsed"
+                                        Click="RecordPause_Click" />
+                            </StackPanel>
+
+                            <!-- 04 Output -->
+                            <StackPanel Margin="0,18,0,0">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <TextBlock Style="{StaticResource SectionNumber}" Text="04" />
+                                    <TextBlock Style="{StaticResource SectionTitle}" Text="OUTPUT" />
+                                </StackPanel>
+                                <HeaderedContentControl Style="{StaticResource HintField}" Header="Audio"
+                                                        ToolTip="Microphone records the Windows default input, system audio records what the machine is playing. If a source is unavailable the recording continues silently and says why.">
+                                    <ComboBox x:Name="AudioCombo" SelectionChanged="AudioCombo_SelectionChanged" />
+                                </HeaderedContentControl>
+                                <HeaderedContentControl Style="{StaticResource HintField}" Header="Quality"
+                                                        Margin="0,8,0,0"
+                                                        ToolTip="Sets frame rate, bitrate and scale together. Low is about 3 to 4 MB per minute at 1080p and is enough for defect documentation, High keeps small text sharp. Recordings are saved as MP4 (H.264).">
+                                    <ComboBox x:Name="QualityCombo" SelectionChanged="QualityCombo_SelectionChanged" />
+                                </HeaderedContentControl>
+                                <ContentControl Style="{StaticResource Hint}" Margin="0,8,0,0"
+                                                ToolTip="Every mouse click flashes a coloured ring around the pointer in the recording, yellow for the left button and red for the right, so a viewer can see where the tester pressed.">
+                                    <CheckBox x:Name="ClicksCheck" Content="Highlight clicks in recordings"
+                                              Click="ClicksCheck_Click" />
+                                </ContentControl>
+                            </StackPanel>
+
+                            <!-- 05 Export -->
+                            <StackPanel Margin="0,18,0,0">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <TextBlock Style="{StaticResource SectionNumber}" Text="05" />
+                                    <TextBlock Style="{StaticResource SectionTitle}" Text="EXPORT" />
+                                </StackPanel>
+                                <HeaderedContentControl Style="{StaticResource HintField}" Header="Document"
+                                                        ToolTip="The file the screenshots are saved into, one page per screenshot in the order shown in the gallery. Recordings are always saved as separate files next to it.">
+                                    <ComboBox x:Name="FormatCombo" SelectionChanged="FormatCombo_SelectionChanged" />
+                                </HeaderedContentControl>
+                                <ContentControl Style="{StaticResource Hint}" Margin="0,8,0,0"
+                                                ToolTip="After a successful save a fresh session becomes current, so the next task starts clean. The saved session is kept under its name and can be reopened from the session list to add to it and save again.">
+                                    <CheckBox x:Name="NewSessionCheck" Content="Start a new session after saving"
+                                              Click="NewSessionCheck_Click" />
+                                </ContentControl>
+                                <ContentControl Style="{StaticResource Hint}" Margin="0,6,0,0"
+                                                ToolTip="Screenshots go into the document as JPEG instead of PNG. The file gets much smaller, at the cost of slightly softer text. Turn it off when the document has to stay pixel exact.">
+                                    <CheckBox x:Name="CompressCheck" Content="Compress images in the document"
+                                              Click="CompressCheck_Click" />
+                                </ContentControl>
+                                <ContentControl Style="{StaticResource Hint}" Margin="0,6,0,0"
+                                                ToolTip="Exports go straight to a folder you pick once, with no save dialog. Files are never overwritten, a repeated name gets a counter.">
+                                    <CheckBox x:Name="FolderCheck" Content="Always use one folder"
+                                              Click="FolderCheck_Click" />
+                                </ContentControl>
+                                <Grid x:Name="FolderRow" Margin="0,8,0,0" Visibility="Collapsed">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Padding="8,6" CornerRadius="7" BorderThickness="1"
+                                            Background="{DynamicResource Panel2}" BorderBrush="{DynamicResource Line}">
+                                        <TextBlock x:Name="FolderPathText" FontSize="12"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Foreground="{DynamicResource Muted}" />
+                                    </Border>
+                                    <Button Grid.Column="1" Margin="6,0,0,0" Padding="10,6" Content="Change"
+                                            Click="FolderChange_Click" />
+                                </Grid>
+                                <Button x:Name="ExportButton" Style="{StaticResource ActionFilledButton}"
+                                        Margin="0,10,0,0" Content="Save PDF" Click="Export_Click" />
+                                <ContentControl x:Name="ExportVideosHint" Style="{StaticResource Hint}"
+                                                Margin="0,8,0,0" Visibility="Collapsed"
+                                                ToolTip="Writes the recordings on their own into a folder you choose, with no PDF. Useful when a clip is worth sending on before the screenshots are finished.">
+                                    <Button x:Name="ExportVideosButton" Style="{StaticResource ActionButton}"
+                                            Content="Save recordings only" Click="ExportVideos_Click" />
+                                </ContentControl>
+                                <Button x:Name="OpenFolderButton" Style="{StaticResource LinkButton}" Margin="0,8,0,0"
+                                        Content="Open output folder" Visibility="Collapsed"
+                                        Click="OpenFolder_Click" />
+                            </StackPanel>
+
+                            <!-- 06 Utilities -->
+                            <StackPanel Margin="0,18,0,0">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <TextBlock Style="{StaticResource SectionNumber}" Text="06" />
+                                    <TextBlock Style="{StaticResource SectionTitle}" Text="UTILITIES" />
+                                </StackPanel>
+                                <Button x:Name="ShortcutsButton" Style="{StaticResource ActionButton}"
+                                        Content="Keyboard shortcuts" Click="Shortcuts_Click" />
+                                <ContentControl Style="{StaticResource Hint}" Margin="0,8,0,0"
+                                                ToolTip="Starts Proofly hidden in the tray when you sign in, so Print Screen works straight away. The entry points at this copy of the app, so after moving its folder switch this off and on again.">
+                                    <CheckBox x:Name="AutostartCheck" Content="Start with Windows"
+                                              Click="AutostartCheck_Click" />
+                                </ContentControl>
+                                <TextBlock Margin="0,8,0,0" FontSize="11" LineHeight="18" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource Muted}"
+                                           Text="Everything stays on this device until you export it." />
+                            </StackPanel>
+
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+
+                <!-- ======================= workspace ======================= -->
+                <Grid Grid.Column="1" Background="{DynamicResource CanvasBg}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Padding="16,8" Background="{DynamicResource Bg}"
+                            BorderBrush="{DynamicResource Line}" BorderThickness="0,0,0,1">
+                        <StackPanel>
+                        <!-- Sessions: each one is a separate set of evidence kept on disk.
+                             Delete all stands apart on the right, in the warning colour. -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="3*" MaxWidth="260" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" MinWidth="20" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Center" FontSize="12"
+                                       Foreground="{DynamicResource Muted}" Text="Session" />
+                            <ComboBox x:Name="SessionCombo" Grid.Column="1" MinHeight="32" Height="32"
+                                      SelectionChanged="SessionCombo_SelectionChanged" />
+                            <Button x:Name="NewSessionButton" Grid.Column="2" Margin="8,0,0,0" Padding="10,5"
+                                    Content="New" ToolTip="Start a new, empty session. The current one is kept."
+                                    Click="NewSession_Click" />
+                            <Button x:Name="RenameSessionButton" Grid.Column="3" Margin="8,0,0,0" Padding="10,5"
+                                    Content="Rename" Click="RenameSession_Click" />
+                            <Button x:Name="DeleteSessionButton" Grid.Column="4" Margin="8,0,0,0" Padding="10,5"
+                                    Content="Delete session"
+                                    ToolTip="Removes this session and its files from this computer"
+                                    Click="DeleteSession_Click" />
+                            <Button x:Name="DeleteAllButton" Grid.Column="6" Padding="10,5"
+                                    Style="{StaticResource DangerButton}" Content="Delete all"
+                                    ToolTip="Removes every screenshot and recording from this session. The session itself stays."
+                                    Click="DeleteAll_Click" />
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock x:Name="ShotCountText" FontSize="12" Foreground="{DynamicResource Muted}"
+                                       Text="0 screenshots" />
+                            <Ellipse Style="{StaticResource DotSeparator}" />
+                            <TextBlock x:Name="ClipCountText" FontSize="12" Foreground="{DynamicResource Muted}"
+                                       Text="0 recordings" />
+                        </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Empty state -->
+                    <StackPanel x:Name="EmptyState" Grid.Row="1" Margin="24" HorizontalAlignment="Center"
+                                VerticalAlignment="Center">
+                        <Viewbox Width="62" Height="62" Margin="0,0,0,12" Opacity="0.5">
+                            <Canvas Width="64" Height="64">
+                                <Rectangle Canvas.Left="6" Canvas.Top="14" Width="38" Height="36" RadiusX="6"
+                                           RadiusY="6" StrokeThickness="2.5" Stroke="{DynamicResource Muted}" />
+                                <Path Data="M48,26 L58,20 L58,44 L48,38" StrokeThickness="2.5"
+                                      StrokeLineJoin="Round" Stroke="{DynamicResource Muted}" />
+                                <Ellipse Canvas.Left="19" Canvas.Top="26" Width="12" Height="12"
+                                         Fill="{DynamicResource Muted}" />
+                            </Canvas>
+                        </Viewbox>
+                        <TextBlock HorizontalAlignment="Center" FontSize="19" FontWeight="SemiBold"
+                                   Text="Nothing captured yet" />
+                        <TextBlock MaxWidth="420" Margin="0,10,0,0" HorizontalAlignment="Center" FontSize="13"
+                                   LineHeight="20" TextAlignment="Center" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource Muted}"
+                                   Text="Pick a display on the left, then capture the screen or record it. Everything stays on this device until you export it." />
+                        <StackPanel Margin="0,16,0,0" Orientation="Horizontal" HorizontalAlignment="Center">
+                            <Button x:Name="EmptyCaptureButton" Style="{StaticResource ActionFilledButton}"
+                                    MinWidth="216" Content="Capture full screen" Click="CaptureFull_Click" />
+                            <Button x:Name="EmptyRecordButton" Style="{StaticResource ActionButton}" MinWidth="216"
+                                    Margin="10,0,0,0" Content="Record full screen" Click="RecordFull_Click" />
+                        </StackPanel>
+                        <StackPanel Margin="0,14,0,0" Orientation="Horizontal" HorizontalAlignment="Center">
+                            <TextBlock x:Name="EmptyDisplayText" FontSize="12" Foreground="{DynamicResource Muted}" />
+                            <Ellipse Style="{StaticResource DotSeparator}" />
+                            <TextBlock x:Name="EmptyAudioText" FontSize="12" Foreground="{DynamicResource Muted}" />
+                            <Ellipse Style="{StaticResource DotSeparator}" />
+                            <TextBlock x:Name="EmptyQualityText" FontSize="12" Foreground="{DynamicResource Muted}" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Gallery -->
+                    <ScrollViewer x:Name="GalleryScroll" Grid.Row="1" Visibility="Collapsed"
+                                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl x:Name="GalleryList" Margin="16,14,16,18">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <controls:AutoGridPanel MinItemWidth="196" Gap="12" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border x:Name="Card" CornerRadius="10" BorderThickness="1"
+                                            Background="{DynamicResource Panel}"
+                                            BorderBrush="{DynamicResource Line}" AllowDrop="True"
+                                            PreviewMouseLeftButtonDown="Card_PressStart"
+                                            PreviewMouseMove="Card_PressMove" DragOver="Card_DragOver"
+                                            DragLeave="Card_DragLeave" Drop="Card_Drop">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="124" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <Border Grid.Row="0" CornerRadius="9,9,0,0" Cursor="Hand"
+                                                    Background="{DynamicResource CanvasBg}"
+                                                    ToolTip="Click to open. Drag to change the order."
+                                                    MouseLeftButtonUp="Card_Open">
+                                                <Grid>
+                                                    <Image Source="{Binding Thumb}" Stretch="Uniform" Margin="1"
+                                                           RenderOptions.BitmapScalingMode="HighQuality" />
+                                                    <Border x:Name="Badge" Margin="0,0,6,6" Padding="6,1"
+                                                            HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                            CornerRadius="4" Background="#B8000000"
+                                                            Visibility="Collapsed">
+                                                        <TextBlock FontSize="11" Foreground="White"
+                                                                   Text="{Binding Badge}" />
+                                                    </Border>
+                                                    <!-- Page number in the exported document. -->
+                                                    <Border x:Name="OrderBadge" Margin="6,6,0,0" Padding="6,1"
+                                                            MinWidth="22" HorizontalAlignment="Left"
+                                                            VerticalAlignment="Top" CornerRadius="4"
+                                                            Background="{DynamicResource Accent}"
+                                                            Visibility="Collapsed">
+                                                        <TextBlock FontSize="11" FontWeight="SemiBold"
+                                                                   TextAlignment="Center"
+                                                                   Foreground="{DynamicResource AccentText}"
+                                                                   Text="{Binding OrderText}" />
+                                                    </Border>
+                                                </Grid>
+                                            </Border>
+                                            <StackPanel Grid.Row="1" Margin="9,7">
+                                                <TextBlock FontSize="12" TextTrimming="CharacterEllipsis"
+                                                           Foreground="{DynamicResource Text}" Text="{Binding Name}"
+                                                           ToolTip="{Binding Name}" />
+                                                <TextBlock Margin="0,1,0,0" FontSize="11"
+                                                           Foreground="{DynamicResource Muted}" Text="{Binding Sub}" />
+                                            </StackPanel>
+                                            <Border Grid.Row="2" BorderThickness="0,1,0,0"
+                                                    BorderBrush="{DynamicResource Line}">
+                                                <Button x:Name="DeleteButton" Padding="0,7" BorderThickness="0"
+                                                        Background="Transparent" FontSize="12" Content="Delete"
+                                                        Foreground="{DynamicResource Muted}" Click="Card_Delete" />
+                                            </Border>
+                                            <!-- Shown for a moment on a card that was just moved. -->
+                                            <Border x:Name="MovedMark" Grid.RowSpan="3" CornerRadius="9"
+                                                    BorderThickness="2" BorderBrush="{DynamicResource Accent}"
+                                                    Background="{DynamicResource AccentSoft}"
+                                                    Visibility="Collapsed" IsHitTestVisible="False" />
+                                            <!-- Shows where a dragged card would land. -->
+                                            <Border x:Name="DropBefore" Grid.RowSpan="3" Width="4" Margin="-9,0,0,0"
+                                                    HorizontalAlignment="Left" CornerRadius="2"
+                                                    Background="{DynamicResource Accent}" Visibility="Collapsed"
+                                                    IsHitTestVisible="False" />
+                                            <Border x:Name="DropAfter" Grid.RowSpan="3" Width="4" Margin="0,0,-9,0"
+                                                    HorizontalAlignment="Right" CornerRadius="2"
+                                                    Background="{DynamicResource Accent}" Visibility="Collapsed"
+                                                    IsHitTestVisible="False" />
+                                        </Grid>
+                                    </Border>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsVideo}" Value="True">
+                                            <Setter TargetName="Badge" Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding HasOrder}" Value="True">
+                                            <Setter TargetName="OrderBadge" Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsDragging}" Value="True">
+                                            <Setter TargetName="Card" Property="Opacity" Value="0.3" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                                            <Setter TargetName="MovedMark" Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding DropHint}" Value="-1">
+                                            <Setter TargetName="DropBefore" Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding DropHint}" Value="1">
+                                            <Setter TargetName="DropAfter" Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <Trigger SourceName="Card" Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Card" Property="BorderBrush"
+                                                    Value="{DynamicResource Accent}" />
+                                        </Trigger>
+                                        <Trigger SourceName="DeleteButton" Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="DeleteButton" Property="Foreground"
+                                                    Value="{DynamicResource Danger}" />
+                                        </Trigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </Grid>
+
+            <!-- ======================= status bar ======================= -->
+            <Border Grid.Row="2" Padding="16,7" Background="{DynamicResource Panel}"
+                    BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Ellipse x:Name="StateDot" Grid.Column="0" Width="7" Height="7" Margin="0,0,10,0"
+                             VerticalAlignment="Center" Fill="{DynamicResource Accent}" />
+                    <TextBlock x:Name="StatusText" Grid.Column="1" VerticalAlignment="Center" FontSize="12"
+                               TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Muted}"
+                               Text="Ready." />
+                    <Button x:Name="UndoDeleteButton" Grid.Column="2" Margin="10,0,0,0"
+                            Style="{StaticResource LinkButton}" FontSize="12" Content="Undo delete"
+                            Visibility="Collapsed" Click="UndoDelete_Click" />
+                    <TextBlock x:Name="VersionText" Grid.Column="3" Margin="10,0,0,0" VerticalAlignment="Center"
+                               Opacity="0.65" FontSize="11" FontFamily="{StaticResource MonoFont}"
+                               Foreground="{DynamicResource Muted}" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- A small copy of the dragged card that follows the pointer. It sits
+             below and right of the pointer, never under it, so it does not get in
+             the way of the drop. -->
+        <Popup x:Name="DragGhost" AllowsTransparency="True" IsHitTestVisible="False" Placement="Relative"
+               PlacementTarget="{Binding ElementName=Shell}" StaysOpen="True" IsOpen="False">
+            <Border Width="176" Padding="3" Opacity="0.92" CornerRadius="8" BorderThickness="2"
+                    BorderBrush="{DynamicResource Accent}" Background="{DynamicResource Panel}">
+                <Grid>
+                    <Image x:Name="DragGhostImage" MaxHeight="112" Stretch="Uniform" />
+                    <Border x:Name="DragGhostBadge" Margin="4,4,0,0" Padding="6,1" MinWidth="22"
+                            HorizontalAlignment="Left" VerticalAlignment="Top" CornerRadius="4"
+                            Background="{DynamicResource Accent}">
+                        <TextBlock x:Name="DragGhostText" FontSize="11" FontWeight="SemiBold" TextAlignment="Center"
+                                   Foreground="{DynamicResource AccentText}" />
+                    </Border>
+                </Grid>
+            </Border>
+        </Popup>
+
+        <!-- Views that take over the whole window. -->
+        <views:EditorView x:Name="Editor" Visibility="Collapsed" />
+        <views:PlayerView x:Name="Player" Visibility="Collapsed" />
+        <views:ShortcutsView x:Name="ShortcutsPanel" Visibility="Collapsed" />
+        <views:ConfirmOverlay x:Name="Confirm" />
+    </Grid>
+</Window>
