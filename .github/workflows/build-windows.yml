@@ -27,6 +27,21 @@ jobs:
       - name: Publish with the runtime included
         run: dotnet publish Proofly.csproj -c Release -o publish/self-contained --self-contained true
 
+      # The recording library needs the Visual C++ runtime. Its files go next
+      # to the application, so nothing has to be installed on the target machine.
+      - name: Add the Visual C++ runtime
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products * -property installationPath
+          $crt = Get-ChildItem -Path "$vs\VC\Redist\MSVC\*\x64\Microsoft.VC*.CRT" -Directory |
+            Sort-Object FullName | Select-Object -Last 1
+          if (-not $crt) { throw "The Visual C++ runtime files were not found on the build machine." }
+          Copy-Item "$($crt.FullName)\*.dll" publish\standard\
+          Copy-Item "$($crt.FullName)\*.dll" publish\self-contained\
+          Write-Host "Added from $($crt.FullName):"
+          Get-ChildItem "$($crt.FullName)\*.dll" | ForEach-Object { Write-Host "  $($_.Name)" }
+
       - name: Package
         shell: pwsh
         run: |

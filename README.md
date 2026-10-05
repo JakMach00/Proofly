@@ -82,8 +82,9 @@ Other
 - Windows 10 or Windows 11, 64 bit.
 - .NET Desktop Runtime 8 or newer. A build published as self-contained carries its own
   runtime and does not need this.
-- Microsoft Visual C++ Redistributable 2015-2022 (x64). Needed for recording only. Capture,
-  annotation and export work without it.
+- The Microsoft Visual C++ runtime (x64), needed for recording only. The release packages
+  include its files, so nothing has to be installed. A build you publish yourself does not
+  include them and relies on the Visual C++ Redistributable 2015-2022 being installed.
 - Media Foundation, which is part of Windows. The N editions of Windows need the Media
   Feature Pack for recording.
 
@@ -233,7 +234,7 @@ Where things are stored
 | --- | --- |
 | Sessions: screenshots, recordings, previews | `%LOCALAPPDATA%\Proofly\Sessions`, one folder per session |
 | Settings | `%APPDATA%\Proofly\settings.json` |
-| Error log | `%APPDATA%\Proofly\error.log`, created only when an unexpected error occurs |
+| Error log | `%APPDATA%\Proofly\error.log`, created only when an error occurs |
 | Exported documents | wherever you save them |
 
 Points to be aware of
@@ -292,6 +293,7 @@ The project targets x64 only, because the recording library is native.
 | --- | --- | --- |
 | [ScreenRecorderLib](https://github.com/sskodje/ScreenRecorderLib) 7.0.1 | Screen recording | MIT |
 | .NET and WPF | Runtime and user interface | MIT |
+| Microsoft Visual C++ runtime files (release packages only) | Needed by ScreenRecorderLib | Microsoft redistributable terms |
 
 Recordings are encoded with the H.264 encoder that is part of Windows. Proofly ships no
 encoder of its own. The PDF and Word files are written by code in this repository, without

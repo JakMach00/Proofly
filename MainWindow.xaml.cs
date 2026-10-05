@@ -396,6 +396,33 @@ namespace Proofly
         private void SetStatus(string text)
         {
             StatusText.Text = text;
+            // A long message is cut off at the edge of the window. Hovering
+            // shows all of it.
+            StatusText.ToolTip = text;
+        }
+
+        /// <summary>
+        /// Says why a recording could not start. A library that cannot be loaded
+        /// and a recording that Windows refuses are different problems with
+        /// different fixes, so they are told apart.
+        /// </summary>
+        private static string DescribeRecordingFailure(Exception error)
+        {
+            bool notLoaded = false;
+            string detail = error.Message;
+            for (Exception e = error; e != null; e = e.InnerException)
+            {
+                if (e is FileNotFoundException || e is FileLoadException || e is DllNotFoundException ||
+                    e is BadImageFormatException || e is TypeLoadException || e is TypeInitializationException)
+                    notLoaded = true;
+                if (!string.IsNullOrWhiteSpace(e.Message)) detail = e.Message;
+            }
+            if (string.IsNullOrWhiteSpace(detail)) detail = error.GetType().Name;
+
+            return notLoaded
+                ? "Recording is unavailable, its library could not be loaded: " + detail +
+                  " Details are in " + App.ErrorLogPath + "."
+                : "Could not start recording: " + detail + " Details are in " + App.ErrorLogPath + ".";
         }
 
         public void ReportError(string text)
@@ -874,8 +901,8 @@ namespace Proofly
             }
             catch (Exception error)
             {
-                SetStatus("Could not start recording: " + error.Message +
-                          " Recording needs the Visual C++ Redistributable (x64) and Media Foundation.");
+                App.LogError("Starting a recording", error);
+                SetStatus(DescribeRecordingFailure(error));
             }
             UpdateUi();
         }

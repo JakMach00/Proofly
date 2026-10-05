@@ -64,20 +64,36 @@ namespace Proofly
         /// An unexpected error is written next to the settings and shown in the
         /// status bar. The session is kept, so nothing captured is lost.
         /// </summary>
-        private void OnUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+        /// <summary>Full path of the file errors are written to.</summary>
+        public static string ErrorLogPath
+        {
+            get { return Path.Combine(Path.GetDirectoryName(AppSettings.DefaultPath) ?? "", "error.log"); }
+        }
+
+        /// <summary>
+        /// Appends an error with all its details to the log next to the
+        /// settings. The status bar only has room for one line, the log keeps
+        /// the rest for whoever has to find the cause.
+        /// </summary>
+        public static void LogError(string context, Exception error)
         {
             try
             {
-                string dir = Path.GetDirectoryName(AppSettings.DefaultPath);
-                Directory.CreateDirectory(dir);
+                Directory.CreateDirectory(Path.GetDirectoryName(ErrorLogPath));
                 File.AppendAllText(
-                    Path.Combine(dir, "error.log"),
-                    DateTime.Now.ToString("s") + " " + e.Exception + Environment.NewLine + Environment.NewLine);
+                    ErrorLogPath,
+                    DateTime.Now.ToString("s") + " " + context + Environment.NewLine + error + Environment.NewLine +
+                    Environment.NewLine);
             }
             catch (Exception)
             {
                 // The log is a courtesy. Failing to write it changes nothing.
             }
+        }
+
+        private void OnUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+        {
+            LogError("Unexpected error", e.Exception);
 
             var window = MainWindow as MainWindow;
             if (window != null) window.ReportError("Unexpected error: " + e.Exception.Message);

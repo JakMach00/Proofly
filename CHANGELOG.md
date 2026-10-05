@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.0.2
+
+- The release packages now carry the Visual C++ runtime files next to the application.
+  Recording no longer depends on the Visual C++ Redistributable being installed on the
+  computer.
+- When a recording cannot start, the status bar gives the actual reason instead of always
+  pointing at the Visual C++ Redistributable, and the full details are written to
+  `error.log`.
+- Hovering over the status bar shows the whole message when it is too long to fit.
+
 ## 3.0.1
 
 - Crop works with a frame now. Choosing Crop puts a frame on the screenshot with a grip on
