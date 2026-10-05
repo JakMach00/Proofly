@@ -1,5 +1,31 @@
 # Changelog
 
+## 3.0.1
+
+- Crop works with a frame now. Choosing Crop puts a frame on the screenshot with a grip on
+  every corner and side. Drag the grips to adjust it, drag inside to move it, and the part
+  that would be cut away is darkened as you go. Nothing is cropped until you press Apply
+  crop or Enter. Cancel or Esc leaves the screenshot as it was. Opening Crop again on a
+  cropped screenshot shows the whole image, so a crop can also be widened.
+- Click marks in recordings follow the mouse button. The ring appears when a button goes
+  down, stays while it is held, and fades out after it is released, instead of flashing for
+  a fixed time.
+- The colours moved from the tool row to the options row, next to Thickness. The options
+  row wraps in a narrow window as well.
+- "Include the mouse pointer" is on by default.
+- A zoomed screenshot can be dragged around with the Select tool: hold the left mouse button
+  on an empty spot and move.
+- "Start a new session after saving" is off by default. Saving leaves you in the same session.
+- The session list shows names only, without the item count that looked like a second
+  number. A lone session that was never renamed is shown as "Session", numbers appear from 1
+  once there is more than one.
+- The editor toolbar no longer hides Undo in a narrow window. All ten tools fit on one line
+  at the smallest window size, and Undo and Delete selected always stay visible. To make
+  room, "Unsaved changes" moved up next to Save changes, the hint about the arrow keys became
+  a tooltip on Previous and Next, and "Reset crop" is now the shorter "Undo crop".
+- The options row stays on one line with the Text tool: Thickness, which text does not use,
+  makes way for font, size and outline.
+
 ## 3.0.0
 
 Proofly is rewritten in C# with WPF on .NET 8. The Electron and Node toolchain is gone, the

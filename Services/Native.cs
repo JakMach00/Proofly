@@ -106,6 +106,23 @@ namespace Proofly.Services
             IntPtr hdc, int xLeft, int yTop, IntPtr hIcon, int cxWidth, int cyWidth, uint istepIfAniCur,
             IntPtr hbrFlickerFreeDraw, uint diFlags);
 
+        public const int VkLeftButton = 0x01;
+        public const int VkRightButton = 0x02;
+
+        public const int GwlExStyle = -20;
+        public const long WsExTransparent = 0x00000020;
+        public const long WsExToolWindow = 0x00000080;
+        public const long WsExNoActivate = 0x08000000;
+
+        [DllImport("user32.dll")]
+        public static extern short GetAsyncKeyState(int vKey);
+
+        [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
+        public static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
+
+        [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
+        public static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
         public delegate bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdcMonitor, IntPtr lprcMonitor, IntPtr dwData);
 
         [DllImport("user32.dll", SetLastError = true)]

@@ -30,6 +30,10 @@ namespace Proofly.Views
         private const double ZoomStep = 1.25;
 
         private static readonly Brush SelectionBrush = MakeBrush(Color.FromRgb(0x00, 0xE5, 0xFF));
+        private static readonly Brush CropShade = MakeBrush(Color.FromArgb(150, 0, 0, 0));
+
+        /// <summary>A crop cannot be made smaller than this, in image pixels.</summary>
+        private const double MinCrop = 12;
 
         private enum DragMode
         {
@@ -45,6 +49,10 @@ namespace Proofly.Views
             public DragMode Mode;
             public Annotation Target;
             public string Handle;
+
+            /// <summary>The crop frame as it was when the gesture began.</summary>
+            public Rect StartRect;
+
             public double Ox;
             public double Oy;
 
@@ -84,6 +92,10 @@ namespace Proofly.Views
         private List<Annotation> _items = new List<Annotation>();
         private readonly List<Snapshot> _history = new List<Snapshot>();
         private Int32Rect? _crop;
+        /// <summary>
+        /// The crop frame while the Crop tool is open, in image pixels. Nothing
+        /// is cropped until it is applied.
+        /// </summary>
         private Rect? _cropDraft;
         private int _nextStep = 1;
         private string _selectedId;
@@ -176,6 +188,7 @@ namespace Proofly.Views
             _history.Clear();
             _crop = null;
             _cropDraft = null;
+            if (_tool == "crop") _tool = "select";
             _selectedId = null;
             _nextStep = 1;
             _dirty = false;
@@ -297,12 +310,20 @@ namespace Proofly.Views
         // Geometry
         // ------------------------------------------------------------------
 
+        /// <summary>True while the crop frame is open.</summary>
+        private bool Cropping
+        {
+            get { return _cropDraft.HasValue && _tool == "crop"; }
+        }
+
         /// <summary>The visible part of the screenshot, in image pixels.</summary>
         private Int32Rect Area
         {
             get
             {
-                if (_crop.HasValue) return _crop.Value;
+                // The whole screenshot is shown while the crop frame is open, so
+                // an earlier crop can be widened again.
+                if (_crop.HasValue && !Cropping) return _crop.Value;
                 return new Int32Rect(0, 0, _image.PixelWidth, _image.PixelHeight);
             }
         }
@@ -517,10 +538,14 @@ namespace Proofly.Views
                 AnnotationRenderer.Draw(dc, item);
             }
 
-            if (_cropDraft.HasValue)
+            if (Cropping)
             {
-                var pen = new Pen(SelectionBrush, 2 * k) { DashStyle = new DashStyle(new double[] { 4.5, 3 }, 0) };
-                dc.DrawRectangle(null, pen, _cropDraft.Value);
+                PaintCropFrame(dc, k);
+                dc.Pop();
+                dc.Pop();
+                dc.Pop();
+                dc.Pop();
+                return;
             }
 
             Annotation selected = Selected;
@@ -542,6 +567,28 @@ namespace Proofly.Views
             dc.Pop();
             dc.Pop();
             dc.Pop();
+        }
+
+        /// <summary>
+        /// Darkens what the crop would cut away and draws the frame with a grip
+        /// on every corner and every side.
+        /// </summary>
+        private void PaintCropFrame(DrawingContext dc, double k)
+        {
+            Rect frame = _cropDraft.Value;
+            var whole = new RectangleGeometry(new Rect(0, 0, _image.PixelWidth, _image.PixelHeight));
+            dc.DrawGeometry(CropShade, null, new CombinedGeometry(GeometryCombineMode.Exclude, whole, new RectangleGeometry(frame)));
+            dc.DrawRectangle(null, new Pen(Brushes.White, 1.5 * k), frame);
+
+            var outline = new Pen(SelectionBrush, 1.5 * k);
+            foreach (HandlePoint grip in CropGrips(frame))
+            {
+                // Corner grips are a little larger than the ones on the sides.
+                double half = (grip.Id.Length == 2 ? 6.5 : 5) * k;
+                dc.DrawRectangle(
+                    Brushes.White, outline,
+                    new Rect(grip.Position.X - half, grip.Position.Y - half, half * 2, half * 2));
+            }
         }
 
         /// <summary>Repaints the image and brings every control in line with the state.</summary>
@@ -569,8 +616,13 @@ namespace Proofly.Views
                         radio.IsChecked = string.Equals(radio.Tag as string, _color, StringComparison.OrdinalIgnoreCase);
                 }
 
-                ResetCropButton.Visibility = _crop.HasValue ? Visibility.Visible : Visibility.Collapsed;
-                UndoButton.IsEnabled = _history.Count > 0;
+                bool cropping = Cropping;
+                UndoCropButton.Visibility = _crop.HasValue && !cropping ? Visibility.Visible : Visibility.Collapsed;
+                CropOption.Visibility = cropping ? Visibility.Visible : Visibility.Collapsed;
+                ColorOption.Visibility = cropping ? Visibility.Collapsed : Visibility.Visible;
+                if (cropping) ShowCropSize();
+                // With the crop frame open, Undo closes it.
+                UndoButton.IsEnabled = _history.Count > 0 || Cropping;
                 DeleteSelectedButton.IsEnabled = _selectedId != null;
                 DirtyText.Visibility = _dirty ? Visibility.Visible : Visibility.Collapsed;
                 SaveButton.IsEnabled = _dirty;
@@ -594,17 +646,20 @@ namespace Proofly.Views
                 // Redaction and highlighting are filled blocks, so a stroke
                 // width means nothing for either of them.
                 bool solid = _tool == "redact" || _tool == "highlight" || (selectedShape != null && selectedShape.IsSolid);
-                WidthOption.Visibility = solid ? Visibility.Collapsed : Visibility.Visible;
-                SolidNote.Visibility = solid ? Visibility.Visible : Visibility.Collapsed;
+                // Text has a size of its own and no stroke, so Thickness makes
+                // way for the text settings. That also keeps the row on one line.
+                bool textInUse = _tool == "text" || selectedText != null;
+                WidthOption.Visibility = solid || cropping || textInUse ? Visibility.Collapsed : Visibility.Visible;
+                SolidNote.Visibility = solid && !cropping ? Visibility.Visible : Visibility.Collapsed;
                 WidthSlider.Value = _width;
 
                 bool stepActive = _tool == "step" || selectedStep != null;
-                StepOption.Visibility = stepActive ? Visibility.Visible : Visibility.Collapsed;
+                StepOption.Visibility = stepActive && !cropping ? Visibility.Visible : Visibility.Collapsed;
                 StepLabel.Text = selectedStep != null ? "Step number" : "Next step number";
                 SetBoxText(StepBox, selectedStep != null ? selectedStep.Number : _nextStep);
 
                 bool textActive = _tool == "text" || selectedText != null;
-                TextOption.Visibility = textActive ? Visibility.Visible : Visibility.Collapsed;
+                TextOption.Visibility = textActive && !cropping ? Visibility.Visible : Visibility.Collapsed;
                 FontCombo.SelectedItem = selectedText != null ? selectedText.Font : _font;
                 SetBoxText(SizeBox, selectedText != null ? (int)Math.Round(selectedText.Size) : _fontSize);
                 OutlineCheck.IsChecked = selectedText != null ? selectedText.Outline : _outline;
@@ -653,7 +708,7 @@ namespace Proofly.Views
             Point p = ToImage(raw);
 
             // Double clicking a text label opens it for editing in place.
-            if (e.ClickCount == 2)
+            if (e.ClickCount == 2 && !Cropping)
             {
                 var label = HitTest(p) as TextAnnotation;
                 if (label != null)
@@ -665,10 +720,14 @@ namespace Proofly.Views
                 }
             }
 
-            if (_tool == "crop")
+            if (Cropping)
             {
-                _cropDraft = new Rect(p.X, p.Y, 0, 0);
-                StartDrag(new Drag { Mode = DragMode.Crop, Ox = p.X, Oy = p.Y });
+                // A grip reshapes the frame, the inside moves it, and dragging
+                // outside it draws a new frame from scratch.
+                Rect frame = _cropDraft.Value;
+                string grip = HitCropGrip(p);
+                if (grip == null) grip = frame.Contains(p) ? "move" : "new";
+                StartDrag(new Drag { Mode = DragMode.Crop, Handle = grip, StartRect = frame, Ox = p.X, Oy = p.Y });
                 return;
             }
 
@@ -692,6 +751,13 @@ namespace Proofly.Views
                 }
                 else
                 {
+                    // On empty space of a zoomed image, holding the button
+                    // drags the view around.
+                    if (_zoom.HasValue)
+                    {
+                        _panGrab = raw;
+                        Surface.CaptureMouse();
+                    }
                     Refresh();
                 }
                 return;
@@ -821,17 +887,26 @@ namespace Proofly.Views
             Point p = ToImage(e.GetPosition(Surface));
             Drag drag = _drag;
 
+            if (drag == null && Cropping)
+            {
+                Surface.Cursor = CropCursor(HitCropGrip(p), _cropDraft.Value.Contains(p));
+                return;
+            }
+
             if (drag == null)
             {
                 if (HitHandle(p) != null) Surface.Cursor = Cursors.Hand;
-                else if (_tool == "select") Surface.Cursor = Cursors.Arrow;
+                else if (_tool == "select")
+                    Surface.Cursor = _zoom.HasValue && HitTest(p) == null ? Cursors.SizeAll : Cursors.Arrow;
                 else Surface.Cursor = Cursors.Cross;
                 return;
             }
 
             if (drag.Mode == DragMode.Crop)
             {
-                _cropDraft = new Rect(new Point(drag.Ox, drag.Oy), p);
+                drag.Moved = true;
+                _cropDraft = ReshapeCrop(drag, p);
+                ShowCropSize();
                 Surface.InvalidateVisual();
                 return;
             }
@@ -873,6 +948,11 @@ namespace Proofly.Views
 
         private void Surface_MouseUp(object sender, MouseButtonEventArgs e)
         {
+            if (_panGrab.HasValue)
+            {
+                _panGrab = null;
+                if (Surface.IsMouseCaptured) Surface.ReleaseMouseCapture();
+            }
             EndDrag();
         }
 
@@ -891,9 +971,10 @@ namespace Proofly.Views
 
             if (drag.Mode == DragMode.Crop)
             {
-                Rect? draft = _cropDraft;
-                _cropDraft = null;
-                if (draft.HasValue && _image != null) ApplyCrop(draft.Value);
+                // A frame drawn too small to be meant is taken back. The crop
+                // itself only happens on Apply or Enter.
+                if (_cropDraft.HasValue && (_cropDraft.Value.Width < MinCrop || _cropDraft.Value.Height < MinCrop))
+                    _cropDraft = drag.StartRect;
                 Refresh();
                 return;
             }
@@ -921,19 +1002,174 @@ namespace Proofly.Views
             Refresh();
         }
 
-        private void ApplyCrop(Rect draft)
+        // ------------------------------------------------------------------
+        // Crop
+        // ------------------------------------------------------------------
+
+        private Rect ImageBounds
         {
+            get { return new Rect(0, 0, _image.PixelWidth, _image.PixelHeight); }
+        }
+
+        /// <summary>Opens the crop frame on the current crop, or on the whole screenshot.</summary>
+        private void BeginCrop()
+        {
+            _selectedId = null;
+            _cropDraft = _crop.HasValue
+                ? new Rect(_crop.Value.X, _crop.Value.Y, _crop.Value.Width, _crop.Value.Height)
+                : ImageBounds;
+            // The visible area changes, so the view goes back to showing all of it.
+            _zoom = null;
+        }
+
+        /// <summary>The eight grips of the frame: corners have two letter names, sides one.</summary>
+        private static List<HandlePoint> CropGrips(Rect frame)
+        {
+            double midX = frame.Left + frame.Width / 2;
+            double midY = frame.Top + frame.Height / 2;
+            return new List<HandlePoint>
+            {
+                new HandlePoint { Id = "nw", Position = new Point(frame.Left, frame.Top) },
+                new HandlePoint { Id = "ne", Position = new Point(frame.Right, frame.Top) },
+                new HandlePoint { Id = "sw", Position = new Point(frame.Left, frame.Bottom) },
+                new HandlePoint { Id = "se", Position = new Point(frame.Right, frame.Bottom) },
+                new HandlePoint { Id = "n", Position = new Point(midX, frame.Top) },
+                new HandlePoint { Id = "s", Position = new Point(midX, frame.Bottom) },
+                new HandlePoint { Id = "w", Position = new Point(frame.Left, midY) },
+                new HandlePoint { Id = "e", Position = new Point(frame.Right, midY) },
+            };
+        }
+
+        private string HitCropGrip(Point p)
+        {
+            if (!_cropDraft.HasValue) return null;
+            double reach = 11 * ViewScale;
+            foreach (HandlePoint grip in CropGrips(_cropDraft.Value))
+            {
+                if (Math.Abs(grip.Position.X - p.X) <= reach && Math.Abs(grip.Position.Y - p.Y) <= reach)
+                    return grip.Id;
+            }
+            return null;
+        }
+
+        private static Cursor CropCursor(string grip, bool inside)
+        {
+            switch (grip)
+            {
+                case "nw":
+                case "se":
+                    return Cursors.SizeNWSE;
+                case "ne":
+                case "sw":
+                    return Cursors.SizeNESW;
+                case "n":
+                case "s":
+                    return Cursors.SizeNS;
+                case "w":
+                case "e":
+                    return Cursors.SizeWE;
+                default:
+                    return inside ? Cursors.SizeAll : Cursors.Cross;
+            }
+        }
+
+        /// <summary>The frame a crop gesture produces for the current pointer position.</summary>
+        private Rect ReshapeCrop(Drag drag, Point p)
+        {
+            Rect bounds = ImageBounds;
+            double x = Math.Max(bounds.Left, Math.Min(bounds.Right, p.X));
+            double y = Math.Max(bounds.Top, Math.Min(bounds.Bottom, p.Y));
+            Rect start = drag.StartRect;
+
+            if (drag.Handle == "new")
+            {
+                double ox = Math.Max(bounds.Left, Math.Min(bounds.Right, drag.Ox));
+                double oy = Math.Max(bounds.Top, Math.Min(bounds.Bottom, drag.Oy));
+                return new Rect(new Point(ox, oy), new Point(x, y));
+            }
+
+            if (drag.Handle == "move")
+            {
+                // The frame keeps its size and stops at the edges of the image.
+                double left = start.Left + (p.X - drag.Ox);
+                double top = start.Top + (p.Y - drag.Oy);
+                left = Math.Max(bounds.Left, Math.Min(bounds.Right - start.Width, left));
+                top = Math.Max(bounds.Top, Math.Min(bounds.Bottom - start.Height, top));
+                return new Rect(left, top, start.Width, start.Height);
+            }
+
+            double l = start.Left;
+            double t = start.Top;
+            double r = start.Right;
+            double b = start.Bottom;
+            // A side cannot be dragged past the opposite one.
+            if (drag.Handle.Contains("w")) l = Math.Min(x, r - MinCrop);
+            if (drag.Handle.Contains("e")) r = Math.Max(x, l + MinCrop);
+            if (drag.Handle.Contains("n")) t = Math.Min(y, b - MinCrop);
+            if (drag.Handle.Contains("s")) b = Math.Max(y, t + MinCrop);
+            return new Rect(new Point(l, t), new Point(r, b));
+        }
+
+        private void ShowCropSize()
+        {
+            if (!_cropDraft.HasValue) return;
+            CropSizeText.Text = Math.Round(_cropDraft.Value.Width).ToString(CultureInfo.InvariantCulture) + " x " +
+                                Math.Round(_cropDraft.Value.Height).ToString(CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>Makes the framed area the visible part of the screenshot.</summary>
+        private void CommitCrop()
+        {
+            if (!Cropping) return;
+            Rect frame = _cropDraft.Value;
             int imageWidth = _image.PixelWidth;
             int imageHeight = _image.PixelHeight;
-            int left = (int)Math.Max(0, Math.Min(imageWidth, Math.Round(draft.Left)));
-            int top = (int)Math.Max(0, Math.Min(imageHeight, Math.Round(draft.Top)));
-            int right = (int)Math.Max(0, Math.Min(imageWidth, Math.Round(draft.Right)));
-            int bottom = (int)Math.Max(0, Math.Min(imageHeight, Math.Round(draft.Bottom)));
-            if (right - left < 12 || bottom - top < 12) return;
-            Push();
-            _crop = new Int32Rect(left, top, right - left, bottom - top);
+            int left = (int)Math.Max(0, Math.Min(imageWidth, Math.Round(frame.Left)));
+            int top = (int)Math.Max(0, Math.Min(imageHeight, Math.Round(frame.Top)));
+            int right = (int)Math.Max(0, Math.Min(imageWidth, Math.Round(frame.Right)));
+            int bottom = (int)Math.Max(0, Math.Min(imageHeight, Math.Round(frame.Bottom)));
+
+            _cropDraft = null;
             _zoom = null;
             SetTool("select");
+
+            bool usable = right - left >= MinCrop && bottom - top >= MinCrop;
+            bool whole = left == 0 && top == 0 && right == imageWidth && bottom == imageHeight;
+            Int32Rect? wanted = !usable || whole ? (Int32Rect?)null : new Int32Rect(left, top, right - left, bottom - top);
+            if (!usable) wanted = _crop;
+
+            // Applying the frame as it already was changes nothing and so
+            // leaves no undo step behind.
+            if (!Nullable.Equals(wanted, _crop))
+            {
+                Push();
+                _crop = wanted;
+            }
+            Persist();
+            Refresh();
+            Focus();
+        }
+
+        /// <summary>Closes the crop frame and leaves the screenshot as it was.</summary>
+        private void CancelCrop()
+        {
+            if (!_cropDraft.HasValue && _tool != "crop") return;
+            _cropDraft = null;
+            _zoom = null;
+            SetTool("select");
+            Persist();
+            Refresh();
+            Focus();
+        }
+
+        private void ApplyCrop_Click(object sender, RoutedEventArgs e)
+        {
+            CommitCrop();
+        }
+
+        private void CancelCrop_Click(object sender, RoutedEventArgs e)
+        {
+            CancelCrop();
         }
 
         // ------------------------------------------------------------------
@@ -1138,12 +1374,27 @@ namespace Proofly.Views
             bool currentPen = _tool == "highlight" || _tool == "marker";
             if (nextPen && !currentPen) _color = HighlightColor;
             else if (!nextPen && currentPen) _color = DefaultColor;
+            bool wasCropping = _cropDraft.HasValue;
             _tool = next;
-            if (next != "select") _cropDraft = null;
+            if (next == "crop")
+            {
+                BeginCrop();
+            }
+            else if (wasCropping)
+            {
+                // Picking another tool closes the frame without cropping.
+                _cropDraft = null;
+                _zoom = null;
+            }
         }
 
         private void Undo()
         {
+            if (Cropping)
+            {
+                CancelCrop();
+                return;
+            }
             if (_history.Count == 0) return;
             Snapshot last = _history[_history.Count - 1];
             _history.RemoveAt(_history.Count - 1);
@@ -1168,7 +1419,16 @@ namespace Proofly.Views
             FinishEditing(true);
             var radio = sender as RadioButton;
             if (radio == null) return;
-            SetTool(radio.Tag as string ?? "select");
+            string next = radio.Tag as string ?? "select";
+            if (next == "crop" && Cropping)
+            {
+                Refresh();
+                return;
+            }
+            SetTool(next);
+            // Picking a drawing tool lets go of the selection, so the options
+            // row shows the settings of the tool and nothing else.
+            if (next != "select") _selectedId = null;
             Persist();
             Refresh();
         }
@@ -1277,11 +1537,14 @@ namespace Proofly.Views
             Refresh();
         }
 
-        private void ResetCrop_Click(object sender, RoutedEventArgs e)
+        /// <summary>Brings the whole screenshot back. Like any other change, it can be undone.</summary>
+        private void UndoCrop_Click(object sender, RoutedEventArgs e)
         {
             FinishEditing(true);
+            if (!_crop.HasValue || Cropping) return;
             Push();
             _crop = null;
+            _zoom = null;
             Refresh();
         }
 
@@ -1305,6 +1568,7 @@ namespace Proofly.Views
         private BitmapSource RenderCurrent()
         {
             FinishEditing(false);
+            if (Cropping) CommitCrop();
             return AnnotationRenderer.Render(_image, Area, _items);
         }
 
@@ -1492,6 +1756,16 @@ namespace Proofly.Views
             // list, Delete removes a character.
             object source = e.OriginalSource;
             if (source is TextBox || source is ComboBox || source is ComboBoxItem) return;
+
+            if (Cropping && (e.Key == Key.Enter || e.Key == Key.Escape))
+            {
+                // Enter keeps the framed area, Escape closes the frame. Neither
+                // leaves the editor.
+                e.Handled = true;
+                if (e.Key == Key.Enter) CommitCrop();
+                else CancelCrop();
+                return;
+            }
 
             if (e.Key == Key.Escape)
             {

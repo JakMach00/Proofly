@@ -30,16 +30,16 @@ namespace Proofly.Core
         public bool HideOnCapture { get; set; } = true;
 
         /// <summary>
-        /// After a document is saved the session is kept and a fresh one becomes
-        /// current, so the next task starts clean and the old one can be reopened.
+        /// When on, saving a document keeps the session and makes a fresh one
+        /// current. Off by default: the session stays open after saving.
         /// </summary>
-        public bool NewSessionAfterExport { get; set; } = true;
+        public bool NewSessionAfterExport { get; set; }
 
         /// <summary>"pdf" or "docx".</summary>
         public string ExportFormat { get; set; } = "pdf";
 
         /// <summary>Draw the mouse pointer into screenshots.</summary>
-        public bool IncludeCursor { get; set; }
+        public bool IncludeCursor { get; set; } = true;
 
         /// <summary>Mark mouse clicks in recordings.</summary>
         public bool HighlightClicks { get; set; } = true;

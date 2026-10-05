@@ -17,13 +17,13 @@
                 BorderBrush="{DynamicResource Line}" BorderThickness="0,0,0,1">
             <DockPanel LastChildFill="False">
                 <Button x:Name="PreviousButton" DockPanel.Dock="Left" Focusable="False" Content="Previous"
+                        ToolTip="Previous screenshot (Left arrow)" ToolTipService.ShowOnDisabled="True"
                         Click="Previous_Click" />
                 <TextBlock x:Name="PositionText" DockPanel.Dock="Left" Margin="10,0"
                            Style="{StaticResource MonoText}" Text="1 / 1" />
                 <Button x:Name="NextButton" DockPanel.Dock="Left" Focusable="False" Content="Next"
+                        ToolTip="Next screenshot (Right arrow)" ToolTipService.ShowOnDisabled="True"
                         Click="Next_Click" />
-                <TextBlock DockPanel.Dock="Left" Margin="12,0,0,0" Style="{StaticResource MonoText}"
-                           Text="Left and Right arrows switch screenshots" />
 
                 <Button DockPanel.Dock="Right" Margin="8,0,0,0" Focusable="False" Content="Close"
                         Click="Close_Click" />
@@ -33,7 +33,11 @@
                         ToolTip="Saves a PNG or JPG file" Click="SaveAs_Click" />
                 <Button DockPanel.Dock="Right" Margin="8,0,0,0" Focusable="False" Content="Copy"
                         ToolTip="Copies the image as it looks now (Ctrl+C)" Click="Copy_Click" />
-                <TextBlock x:Name="NoticeText" DockPanel.Dock="Right" MaxWidth="320" VerticalAlignment="Center"
+                <TextBlock x:Name="DirtyText" DockPanel.Dock="Right" Margin="0,0,6,0" VerticalAlignment="Center"
+                           FontSize="12" Foreground="{DynamicResource Warn}" Text="Unsaved changes"
+                           Visibility="Collapsed" />
+                <TextBlock x:Name="NoticeText" DockPanel.Dock="Right" MaxWidth="320" Margin="0,0,12,0"
+                           VerticalAlignment="Center"
                            FontSize="12" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Accent}" />
             </DockPanel>
         </Border>
@@ -41,67 +45,63 @@
         <!-- Tools and colours -->
         <Border Grid.Row="1" Padding="14,9" Background="{DynamicResource Panel}"
                 BorderBrush="{DynamicResource Line}" BorderThickness="0,0,0,1">
-            <DockPanel LastChildFill="False">
-                <StackPanel x:Name="ToolRow" DockPanel.Dock="Left" Orientation="Horizontal">
-                    <RadioButton GroupName="EditorTool" Style="{StaticResource ToolButton}" Margin="0,0,8,0"
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <!-- All ten tools fit on one line at the smallest window size. Should
+                     they ever not, they wrap instead of sliding under the buttons on
+                     the right. -->
+                <WrapPanel x:Name="ToolRow" Grid.Column="0" VerticalAlignment="Center">
+                    <RadioButton GroupName="EditorTool" Style="{StaticResource ToolButton}" Margin="0,3,6,3"
                                  Tag="select" Content="Select" Click="Tool_Click" />
-                    <RadioButton GroupName="EditorTool" Style="{StaticResource ToolButton}" Margin="0,0,8,0"
+                    <RadioButton GroupName="EditorTool" Style="{StaticResource ToolButton}" Margin="0,3,6,3"
                                  Tag="arrow" Content="Arrow" Click="Tool_Click" />
-                    <RadioButton GroupName="EditorTool" Style="{StaticResource ToolButton}" Margin="0,0,8,0"
+                    <RadioButton GroupName="EditorTool" Style="{StaticResource ToolButton}" Margin="0,3,6,3"
                                  Tag="rect" Content="Box" Click="Tool_Click" />
-                    <RadioButton GroupName="EditorTool" Style="{StaticResource ToolButton}" Margin="0,0,8,0"
+                    <RadioButton GroupName="EditorTool" Style="{StaticResource ToolButton}" Margin="0,3,6,3"
                                  Tag="ellipse" Content="Ellipse" Click="Tool_Click" />
-                    <RadioButton GroupName="EditorTool" Style="{StaticResource ToolButton}" Margin="0,0,8,0"
+                    <RadioButton GroupName="EditorTool" Style="{StaticResource ToolButton}" Margin="0,3,6,3"
                                  Tag="step" Content="Step" Click="Tool_Click" />
-                    <RadioButton GroupName="EditorTool" Style="{StaticResource ToolButton}" Margin="0,0,8,0"
+                    <RadioButton GroupName="EditorTool" Style="{StaticResource ToolButton}" Margin="0,3,6,3"
                                  Tag="text" Content="Text" Click="Tool_Click" />
-                    <RadioButton GroupName="EditorTool" Style="{StaticResource ToolButton}" Margin="0,0,8,0"
+                    <RadioButton GroupName="EditorTool" Style="{StaticResource ToolButton}" Margin="0,3,6,3"
                                  Tag="highlight" Content="Highlight" Click="Tool_Click" />
-                    <RadioButton GroupName="EditorTool" Style="{StaticResource ToolButton}" Margin="0,0,8,0"
+                    <RadioButton GroupName="EditorTool" Style="{StaticResource ToolButton}" Margin="0,3,6,3"
                                  Tag="marker" Content="Marker" Click="Tool_Click" />
-                    <RadioButton GroupName="EditorTool" Style="{StaticResource ToolButton}" Margin="0,0,8,0"
+                    <RadioButton GroupName="EditorTool" Style="{StaticResource ToolButton}" Margin="0,3,6,3"
                                  Tag="redact" Content="Redact" Click="Tool_Click" />
-                    <RadioButton GroupName="EditorTool" Style="{StaticResource ToolButton}" Margin="0,0,8,0"
+                    <RadioButton GroupName="EditorTool" Style="{StaticResource ToolButton}" Margin="0,3,6,3"
                                  Tag="crop" Content="Crop" Click="Tool_Click" />
-                </StackPanel>
-                <Button x:Name="ResetCropButton" DockPanel.Dock="Left" Focusable="False" Padding="11,6"
-                        Content="Reset crop" ToolTip="Restore the full screenshot" Visibility="Collapsed"
-                        Click="ResetCrop_Click" />
-                <Border DockPanel.Dock="Left" Style="{StaticResource ToolSeparator}" Margin="8,0,12,0" />
-                <StackPanel x:Name="SwatchBar" DockPanel.Dock="Left" Orientation="Horizontal"
-                            VerticalAlignment="Center">
-                    <RadioButton GroupName="EditorColor" Style="{StaticResource SwatchButton}" Tag="#ff3b30"
-                                 Background="#FF3B30" Click="Swatch_Click" />
-                    <RadioButton GroupName="EditorColor" Style="{StaticResource SwatchButton}" Tag="#ffcc00"
-                                 Background="#FFCC00" Click="Swatch_Click" />
-                    <RadioButton GroupName="EditorColor" Style="{StaticResource SwatchButton}" Tag="#34c759"
-                                 Background="#34C759" Click="Swatch_Click" />
-                    <RadioButton GroupName="EditorColor" Style="{StaticResource SwatchButton}" Tag="#0a84ff"
-                                 Background="#0A84FF" Click="Swatch_Click" />
-                    <RadioButton GroupName="EditorColor" Style="{StaticResource SwatchButton}" Tag="#ffffff"
-                                 Background="#FFFFFF" Click="Swatch_Click" />
-                    <RadioButton GroupName="EditorColor" Style="{StaticResource SwatchButton}" Tag="#111111"
-                                 Background="#111111" Click="Swatch_Click" />
-                </StackPanel>
+                    <Button x:Name="UndoCropButton" Margin="0,3,0,3" Focusable="False" Padding="11,6"
+                            Content="Undo crop" ToolTip="Bring back the whole screenshot"
+                            Visibility="Collapsed" Click="UndoCrop_Click" />
 
-                <TextBlock x:Name="DirtyText" DockPanel.Dock="Right" Margin="10,0,0,0" VerticalAlignment="Center"
-                           FontSize="12" Foreground="{DynamicResource Warn}" Text="Unsaved changes"
-                           Visibility="Collapsed" />
-                <Button x:Name="DeleteSelectedButton" DockPanel.Dock="Right" Margin="8,0,0,0" Focusable="False"
-                        Padding="11,6" Content="Delete selected" Click="DeleteSelected_Click" />
-                <Button x:Name="UndoButton" DockPanel.Dock="Right" Focusable="False" Padding="11,6"
-                        Content="Undo" Click="Undo_Click" />
-            </DockPanel>
+                </WrapPanel>
+
+                <StackPanel Grid.Column="1" Margin="12,3,0,3" Orientation="Horizontal" VerticalAlignment="Top">
+                    <Button x:Name="UndoButton" Focusable="False" Padding="11,6" Content="Undo"
+                            Click="Undo_Click" />
+                    <Button x:Name="DeleteSelectedButton" Margin="8,0,0,0" Focusable="False" Padding="11,6"
+                            Content="Delete selected" Click="DeleteSelected_Click" />
+                </StackPanel>
+            </Grid>
         </Border>
 
         <!-- Options of the active tool. The row keeps one height whatever it
              shows, so the image below does not jump when switching tools. -->
-        <Border Grid.Row="2" Height="52" Padding="14,0" Background="{DynamicResource Panel}"
+        <Border Grid.Row="2" MinHeight="52" Padding="14,7" Background="{DynamicResource Panel}"
                 BorderBrush="{DynamicResource Line}" BorderThickness="0,0,0,1">
-            <DockPanel LastChildFill="False">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
                 <!-- Zoom. Fit shows the whole screenshot, the wheel with Ctrl
                      zooms around the pointer. -->
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel Grid.Column="1" Height="38" Margin="12,0,0,0" Orientation="Horizontal"
+                            VerticalAlignment="Top">
                     <Button Focusable="False" Width="32" Padding="0,5" Content="-" ToolTip="Zoom out (Ctrl+Minus)"
                             Click="ZoomOut_Click" />
                     <TextBlock x:Name="ZoomText" Width="52" Style="{StaticResource MonoText}" TextAlignment="Center"
@@ -113,11 +113,45 @@
                     <Button Focusable="False" Margin="8,0,0,0" Padding="10,5" Content="Fit"
                             ToolTip="Show the whole screenshot (Ctrl+0)" Click="ZoomFit_Click" />
                 </StackPanel>
-            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+            <!-- Every group is one line high. In a narrow window the groups wrap
+                 onto a second line instead of running under the zoom buttons. -->
+            <WrapPanel Grid.Column="0" ItemHeight="38" VerticalAlignment="Center">
+                <!-- Shown instead of the other options while the crop frame is open. -->
+                <StackPanel x:Name="CropOption" Orientation="Horizontal" VerticalAlignment="Center"
+                            Visibility="Collapsed">
+                    <Button Focusable="False" Style="{StaticResource PrimaryButton}" Padding="12,5"
+                            Content="Apply crop" ToolTip="Keep the framed area (Enter)" Click="ApplyCrop_Click" />
+                    <Button Focusable="False" Margin="8,0,0,0" Padding="12,5" Content="Cancel"
+                            ToolTip="Leave the screenshot as it was (Esc)" Click="CancelCrop_Click" />
+                    <TextBlock x:Name="CropSizeText" Margin="14,0,0,0" Style="{StaticResource MonoText}" />
+                    <TextBlock Margin="14,0,0,0" VerticalAlignment="Center" FontSize="12"
+                               Foreground="{DynamicResource Muted}"
+                               Text="Drag the handles, then Apply or Enter." />
+                </StackPanel>
+                <!-- Colour applies to nearly every tool, so it sits with the other
+                     settings of a tool rather than among the tools. -->
+                <StackPanel x:Name="ColorOption" Orientation="Horizontal" VerticalAlignment="Center">
+                        <StackPanel x:Name="SwatchBar" Orientation="Horizontal"
+                                    VerticalAlignment="Center">
+                            <RadioButton GroupName="EditorColor" Style="{StaticResource SwatchButton}" Tag="#ff3b30"
+                                         Background="#FF3B30" Click="Swatch_Click" />
+                            <RadioButton GroupName="EditorColor" Style="{StaticResource SwatchButton}" Tag="#ffcc00"
+                                         Background="#FFCC00" Click="Swatch_Click" />
+                            <RadioButton GroupName="EditorColor" Style="{StaticResource SwatchButton}" Tag="#34c759"
+                                         Background="#34C759" Click="Swatch_Click" />
+                            <RadioButton GroupName="EditorColor" Style="{StaticResource SwatchButton}" Tag="#0a84ff"
+                                         Background="#0A84FF" Click="Swatch_Click" />
+                            <RadioButton GroupName="EditorColor" Style="{StaticResource SwatchButton}" Tag="#ffffff"
+                                         Background="#FFFFFF" Click="Swatch_Click" />
+                            <RadioButton GroupName="EditorColor" Style="{StaticResource SwatchButton}" Tag="#111111"
+                                         Background="#111111" Click="Swatch_Click" />
+                        </StackPanel>
+                    <Border Style="{StaticResource ToolSeparator}" Margin="6,0,14,0" />
+                </StackPanel>
                 <StackPanel x:Name="WidthOption" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource Muted}"
                                Text="Thickness" />
-                    <Slider x:Name="WidthSlider" Width="130" Margin="8,0,0,0" Minimum="2" Maximum="14"
+                    <Slider x:Name="WidthSlider" Width="110" Margin="8,0,0,0" Minimum="2" Maximum="14"
                             IsSnapToTickEnabled="True" TickFrequency="1" IsMoveToPointEnabled="True"
                             ValueChanged="WidthSlider_ValueChanged" />
                 </StackPanel>
@@ -136,10 +170,9 @@
 
                 <StackPanel x:Name="TextOption" Orientation="Horizontal" VerticalAlignment="Center"
                             Visibility="Collapsed">
-                    <Border Style="{StaticResource ToolSeparator}" Margin="16,0" />
                     <TextBlock VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource Muted}"
                                Text="Font" />
-                    <ComboBox x:Name="FontCombo" Width="140" MinHeight="32" Height="32" Margin="8,0,0,0"
+                    <ComboBox x:Name="FontCombo" Width="126" MinHeight="32" Height="32" Margin="8,0,0,0"
                               SelectionChanged="FontCombo_SelectionChanged" />
                     <TextBlock Margin="16,0,0,0" VerticalAlignment="Center" FontSize="12"
                                Foreground="{DynamicResource Muted}" Text="Size" />
@@ -149,8 +182,8 @@
                     <CheckBox x:Name="OutlineCheck" Margin="16,0,0,0" VerticalAlignment="Center" Focusable="False"
                               Content="Outline" Click="OutlineCheck_Click" />
                 </StackPanel>
-            </StackPanel>
-            </DockPanel>
+            </WrapPanel>
+            </Grid>
         </Border>
 
         <!-- The image -->

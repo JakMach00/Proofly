@@ -133,7 +133,7 @@
                                     <ComboBox x:Name="QualityCombo" SelectionChanged="QualityCombo_SelectionChanged" />
                                 </HeaderedContentControl>
                                 <ContentControl Style="{StaticResource Hint}" Margin="0,8,0,0"
-                                                ToolTip="Every mouse click flashes a coloured ring around the pointer in the recording, yellow for the left button and red for the right, so a viewer can see where the tester pressed.">
+                                                ToolTip="While a mouse button is held a coloured ring is shown around the pointer, yellow for the left button and red for the right. It fades out after the button is released. The ring is drawn on the screen while recording, so you see it too.">
                                     <CheckBox x:Name="ClicksCheck" Content="Highlight clicks in recordings"
                                               Click="ClicksCheck_Click" />
                                 </ContentControl>

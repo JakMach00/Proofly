@@ -36,13 +36,15 @@ Capture
   that area until you reset it. These captures are not copied to the clipboard.
 - Paste: an image on the clipboard, or image files copied in Explorer (PNG, JPG, BMP), can
   be added to the session.
-- Optionally the mouse pointer is drawn into screenshots.
+- The mouse pointer is drawn into screenshots. This can be switched off.
 - Optionally the Proofly window hides itself for the moment of the capture.
 
 Annotate
 
 - Tools: Arrow, Box, Ellipse, numbered Step, Text, Highlight, Marker, Redact and Crop.
 - Text is typed directly on the image. Double click an existing label to edit it.
+- Crop shows a frame with grips on its corners and sides. Adjust it until it is right, then
+  apply it. Nothing is cut until then.
 - Six colours, adjustable thickness, five fonts, optional text outline.
 - Every change can be undone, up to 50 steps back, including deletions, moves and crops.
 - Zoom up to 600% for precise work on large screenshots.
@@ -107,8 +109,9 @@ Starting Proofly a second time brings the running window to the front.
 5. Drag the screenshots into the right order if needed.
 6. Choose PDF or Word under Export and save.
 
-After saving, a new empty session becomes current and the saved one stays in the session
-list. Open it again from the list to add more screenshots and save the document again.
+After saving, the session stays open, so you can add more screenshots and save the document
+again. Use New to start a separate session for the next piece of work. The earlier one stays
+in the session list and can be reopened at any time.
 
 ## Keyboard shortcuts
 
@@ -149,10 +152,12 @@ In the editor
 | Zoom in and out | Ctrl+Plus, Ctrl+Minus, or Ctrl with the mouse wheel |
 | Zoom to 100% | Ctrl+1 |
 | Fit the whole screenshot | Ctrl+0 |
+| Apply the crop frame, or close it without cropping | Enter, Esc |
 | Close the editor (asks first when there are unsaved changes) | Esc |
 
-When zoomed in, the mouse wheel scrolls the image, Shift with the wheel scrolls sideways,
-and the middle mouse button drags it.
+When zoomed in, the mouse wheel scrolls the image and Shift with the wheel scrolls sideways.
+To drag the image around, hold the left mouse button on an empty spot with the Select tool,
+or use the middle mouse button with any tool.
 
 ## Sessions
 
@@ -167,8 +172,11 @@ controls above the gallery manage them.
   session itself. Ctrl+Z brings them back until the next deletion or until another session
   is opened.
 
-With "Start a new session after saving" switched on, which is the default, saving a document
-keeps the session and opens a new one. Switch it off to stay in the same session.
+With "Start a new session after saving" switched on, saving a document keeps the session and
+opens a new one. It is off by default, so saving leaves you in the same session.
+
+A session that was never renamed is called "Session" while it is the only one. With more
+than one they are numbered from 1: "Session 1", "Session 2" and so on.
 
 Empty sessions that still have their default name are removed the next time Proofly starts,
 except the one that was open last.
@@ -201,8 +209,10 @@ before replacing a file.
 
 - Low is enough to document a defect. High keeps small text sharp.
 - The mouse pointer is always visible in recordings.
-- With "Highlight clicks in recordings" a ring flashes around the pointer on every click,
-  yellow for the left button and red for the right.
+- With "Highlight clicks in recordings" a ring is shown around the pointer while a mouse
+  button is held, yellow for the left button and red for the right, and fades out after the
+  button is released. The ring is drawn on the screen during the recording, so you see it
+  too.
 - While a recording is paused nothing is written, so the paused part does not appear in the
   file.
 - With "Hide Proofly while capturing" switched on, the window minimizes when a recording

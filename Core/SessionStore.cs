@@ -55,10 +55,9 @@ namespace Proofly.Core
             return Path.Combine(Folder, fileName);
         }
 
-        /// <summary>Text shown in the session picker.</summary>
         public override string ToString()
         {
-            return Name + " (" + Items.Count.ToString(CultureInfo.InvariantCulture) + ")";
+            return Name;
         }
     }
 
@@ -170,17 +169,24 @@ namespace Proofly.Core
             }
         }
 
-        /// <summary>"Session 4" when the highest numbered session so far is "Session 3".</summary>
+        /// <summary>
+        /// The number in a name the app gave itself, such as 3 for "Session 3".
+        /// Zero for any name the user chose.
+        /// </summary>
+        public static int DefaultNumber(string name)
+        {
+            const string prefix = "Session ";
+            if (name == null || !name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return 0;
+            return int.TryParse(name.Substring(prefix.Length).Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out int number) && number > 0
+                ? number
+                : 0;
+        }
+
+        /// <summary>"Session 4" when the highest numbered session so far is "Session 3". Numbering starts at one.</summary>
         public static string NextName(IEnumerable<SessionData> existing)
         {
             int highest = 0;
-            foreach (SessionData session in existing)
-            {
-                string name = session.Name ?? "";
-                if (!name.StartsWith("Session ", StringComparison.OrdinalIgnoreCase)) continue;
-                if (int.TryParse(name.Substring(8).Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out int number))
-                    highest = Math.Max(highest, number);
-            }
+            foreach (SessionData session in existing) highest = Math.Max(highest, DefaultNumber(session.Name));
             return "Session " + (highest + 1).ToString(CultureInfo.InvariantCulture);
         }
 

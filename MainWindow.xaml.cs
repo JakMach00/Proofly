@@ -43,6 +43,18 @@ namespace Proofly
             }
         }
 
+        /// <summary>An entry of the session picker.</summary>
+        private sealed class SessionChoice
+        {
+            public SessionData Session;
+            public string Label;
+
+            public override string ToString()
+            {
+                return Label;
+            }
+        }
+
         /// <summary>A deleted item and where it sat, kept until the next deletion.</summary>
         private sealed class TrashEntry
         {
@@ -100,6 +112,7 @@ namespace Proofly
         private HotkeyManager _hotkeys;
         private TrayIcon _tray;
         private RecordingService _recorder;
+        private ClickHighlighter _clicks;
         private BitmapSource _recordingThumb;
         private Shot _editing;
         private IntPtr _handle;
@@ -257,6 +270,7 @@ namespace Proofly
                 // Quitting anyway.
             }
             if (Player.IsOpen) Player.Hide();
+            if (_clicks != null) _clicks.Stop();
             DropTrash();
             SaveSession();
             if (_hotkeys != null) _hotkeys.Dispose();
@@ -837,9 +851,22 @@ namespace Proofly
                 // already where it has to be.
                 string output = _session.PathOf("recording_" + Files.Stamp() + ".mp4");
                 RecordingQuality quality = RecordingQuality.Find(Settings.Quality);
-                List<string> warnings = _recorder.Start(
-                    display, region, quality, Settings.AudioSource, output, Settings.HighlightClicks);
+                List<string> warnings = _recorder.Start(display, region, quality, Settings.AudioSource, output);
                 _recordingTimer.Start();
+                if (Settings.HighlightClicks)
+                {
+                    try
+                    {
+                        if (_clicks == null) _clicks = new ClickHighlighter();
+                        _clicks.Start();
+                    }
+                    catch (Exception)
+                    {
+                        // The recording itself is running. It just carries no
+                        // click marks.
+                        _clicks = null;
+                    }
+                }
                 if (Settings.HideOnCapture) MinimizeWindow();
 
                 string text = region.HasValue ? "Recording a region of the screen." : "Recording the whole screen.";
@@ -876,11 +903,13 @@ namespace Proofly
                 if (_recorder.IsPaused)
                 {
                     _recorder.Resume();
+                    if (_clicks != null && Settings.HighlightClicks) _clicks.Start();
                     SetStatus("Recording resumed.");
                 }
                 else
                 {
                     _recorder.Pause();
+                    if (_clicks != null) _clicks.Suspend();
                     SetStatus("Recording paused. Nothing is recorded until you resume.");
                 }
             }
@@ -894,6 +923,7 @@ namespace Proofly
         private void OnRecordingCompleted(RecordingResult result)
         {
             _recordingTimer.Stop();
+            if (_clicks != null) _clicks.Stop();
             long size = 0;
             try
             {
@@ -940,6 +970,7 @@ namespace Proofly
         private void OnRecordingFailed(string reason)
         {
             _recordingTimer.Stop();
+            if (_clicks != null) _clicks.Stop();
             _recordingThumb = null;
             SetStatus("The recording failed: " + (string.IsNullOrEmpty(reason) ? "unknown error" : reason));
             UpdateUi();
@@ -977,7 +1008,7 @@ namespace Proofly
                 }
                 OpenSession(wanted);
                 if (_shots.Count > 0)
-                    SetStatus("Restored \"" + wanted.Name + "\" with " + _shots.Count + " item(s).");
+                    SetStatus("Restored \"" + DisplayName(wanted) + "\" with " + _shots.Count + " item(s).");
             }
             catch (Exception error)
             {
@@ -987,7 +1018,19 @@ namespace Proofly
 
         private static bool IsDefaultName(string name)
         {
-            return name != null && name.StartsWith("Session ", StringComparison.OrdinalIgnoreCase);
+            return SessionStore.DefaultNumber(name) > 0;
+        }
+
+        /// <summary>
+        /// The name of a session as the user sees it. A lone session that was
+        /// never renamed is simply "Session": the number only starts to matter,
+        /// and to show, once there is more than one.
+        /// </summary>
+        private string DisplayName(SessionData session)
+        {
+            if (session == null) return "";
+            if (_sessions.Count <= 1 && IsDefaultName(session.Name)) return "Session";
+            return session.Name;
         }
 
         /// <summary>Shows a session in the gallery and makes it the one captures go into.</summary>
@@ -1108,14 +1151,17 @@ namespace Proofly
             SessionData next = _sessions.LastOrDefault();
             if (next != null) OpenSession(next);
             else StartNewSession();
-            if (_session != null) SetStatus("Session \"" + doomed.Name + "\" deleted. \"" + _session.Name + "\" is open.");
+            if (_session != null) SetStatus("Session \"" + doomed.Name + "\" deleted. \"" + DisplayName(_session) + "\" is open.");
         }
 
         /// <summary>Rebuilds the session picker when a name, a count or the selection changed.</summary>
         private void RefreshSessionList()
         {
-            List<SessionData> ordered = _sessions.OrderByDescending(s => s.Created).ToList();
-            string signature = string.Join("|", ordered.Select(s => s.ToString())) + "#" +
+            List<SessionChoice> choices = _sessions
+                .OrderByDescending(s => s.Created)
+                .Select(s => new SessionChoice { Session = s, Label = DisplayName(s) })
+                .ToList();
+            string signature = string.Join("|", choices.Select(c => c.Label)) + "#" +
                                (_session == null ? "" : _session.Folder);
             if (signature == _sessionListSignature) return;
             _sessionListSignature = signature;
@@ -1123,8 +1169,8 @@ namespace Proofly
             bool wasLoading = _loading;
             _loading = true;
             SessionCombo.Items.Clear();
-            foreach (SessionData session in ordered) SessionCombo.Items.Add(session);
-            SessionCombo.SelectedItem = _session;
+            foreach (SessionChoice choice in choices) SessionCombo.Items.Add(choice);
+            SessionCombo.SelectedItem = choices.FirstOrDefault(c => c.Session == _session);
             _loading = wasLoading;
         }
 
@@ -1554,7 +1600,7 @@ namespace Proofly
             _session.Exported = DateTime.Now;
             SaveSession();
             if (!Settings.NewSessionAfterExport) return "";
-            string saved = _session.Name;
+            string saved = DisplayName(_session);
             return StartNewSession() ? " \"" + saved + "\" is kept in the session list, a new session is open." : "";
         }
 
@@ -1578,7 +1624,7 @@ namespace Proofly
                 List<Shot> videos = _shots.Where(s => s.IsVideo).ToList();
                 bool word = Settings.ExportFormat == "docx";
                 string extension = word ? ".docx" : ".pdf";
-                string sessionName = _session == null ? "documentation" : _session.Name;
+                string sessionName = _session == null ? "documentation" : DisplayName(_session);
                 string defaultName = SessionStore.SafeFileName(sessionName) + extension;
 
                 // A configured folder skips the dialog, but only while it is
@@ -1817,7 +1863,7 @@ namespace Proofly
                 SetStatus("This session is still empty, so it is used as the new one.");
                 return;
             }
-            if (StartNewSession()) SetStatus("Started \"" + _session.Name + "\". The previous session is kept in the list.");
+            if (StartNewSession()) SetStatus("Started \"" + DisplayName(_session) + "\". The previous session is kept in the list.");
         }
 
         private void RenameSession_Click(object sender, RoutedEventArgs e)
@@ -1826,7 +1872,7 @@ namespace Proofly
             Confirm.OpenPrompt(
                 "Rename session",
                 "The name is shown in the session list and used as the file name of the saved document.",
-                _session.Name,
+                DisplayName(_session),
                 "Rename",
                 delegate(string name)
                 {
@@ -1842,7 +1888,7 @@ namespace Proofly
             if (_session == null) return;
             Confirm.Open(
                 "Delete session",
-                "This removes the session \"" + _session.Name + "\" with " + ImageCount + " screenshot(s) and " +
+                "This removes the session \"" + DisplayName(_session) + "\" with " + ImageCount + " screenshot(s) and " +
                 VideoCount + " recording(s) from this computer. It cannot be undone. Documents already saved elsewhere are untouched.",
                 "Delete session",
                 true,
@@ -1852,7 +1898,8 @@ namespace Proofly
         private void SessionCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (_loading) return;
-            var picked = SessionCombo.SelectedItem as SessionData;
+            var choice = SessionCombo.SelectedItem as SessionChoice;
+            SessionData picked = choice == null ? null : choice.Session;
             if (picked == null || picked == _session) return;
             // Opening rebuilds this very list, so it waits until the selection
             // change has been fully handled.
@@ -1860,7 +1907,7 @@ namespace Proofly
             {
                 if (picked == _session || !_sessions.Contains(picked) || IsRecording) return;
                 OpenSession(picked);
-                SetStatus("Opened \"" + picked.Name + "\" with " + _shots.Count + " item(s).");
+                SetStatus("Opened \"" + DisplayName(picked) + "\" with " + _shots.Count + " item(s).");
             }));
         }
 

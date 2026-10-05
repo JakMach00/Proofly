@@ -84,8 +84,7 @@ namespace Proofly.Services
         /// sources that were left out.
         /// </summary>
         public List<string> Start(
-            DisplayInfo display, Int32Rect? region, RecordingQuality quality, string audio, string outputPath,
-            bool highlightClicks)
+            DisplayInfo display, Int32Rect? region, RecordingQuality quality, string audio, string outputPath)
         {
             if (IsRecording) throw new InvalidOperationException("A recording is already running.");
             var warnings = new List<string>();
@@ -141,16 +140,10 @@ namespace Proofly.Services
                 MouseOptions = new MouseOptions
                 {
                     IsMousePointerEnabled = true,
-                    // A short coloured flash around the pointer on every click,
-                    // so a viewer can see where the tester pressed. The library
-                    // watches the buttons by polling, which needs no input hook.
-                    IsMouseClicksDetected = highlightClicks,
-                    MouseLeftClickDetectionColor = "#FFD400",
-                    MouseRightClickDetectionColor = "#FF5A5A",
-                    MouseClickDetectionRadius = 28,
-                    // Long enough to be seen at ten frames a second, short
-                    // enough that two quick clicks still read as two.
-                    MouseClickDetectionDuration = 650,
+                    // Clicks are marked by ClickHighlighter, which draws on the
+                    // screen and can hold and fade the mark. The library's own
+                    // marker only flashes for a fixed time.
+                    IsMouseClicksDetected = false,
                 },
             };
 
