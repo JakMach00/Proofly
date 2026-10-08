@@ -150,6 +150,16 @@
                                     <ComboBox x:Name="FormatCombo" SelectionChanged="FormatCombo_SelectionChanged" />
                                 </HeaderedContentControl>
                                 <ContentControl Style="{StaticResource Hint}" Margin="0,8,0,0"
+                                                ToolTip="Each screenshot with a note gets it printed underneath, headed with its step number. Notes are written in the editor, below the image.">
+                                    <CheckBox x:Name="NotesCheck" Content="Print notes under screenshots"
+                                              Click="NotesCheck_Click" />
+                                </ContentControl>
+                                <ContentControl Style="{StaticResource Hint}" Margin="0,6,0,0"
+                                                ToolTip="Prints when each screenshot was taken or pasted, with the offset from UTC, under the screenshot.">
+                                    <CheckBox x:Name="TimeCheck" Content="Print the capture date and time"
+                                              Click="TimeCheck_Click" />
+                                </ContentControl>
+                                <ContentControl Style="{StaticResource Hint}" Margin="0,6,0,0"
                                                 ToolTip="After a successful save a fresh session becomes current, so the next task starts clean. The saved session is kept under its name and can be reopened from the session list to add to it and save again.">
                                     <CheckBox x:Name="NewSessionCheck" Content="Start a new session after saving"
                                               Click="NewSessionCheck_Click" />
@@ -253,13 +263,35 @@
                                     ToolTip="Removes every screenshot and recording from this session. The session itself stays."
                                     Click="DeleteAll_Click" />
                         </Grid>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock x:Name="ShotCountText" FontSize="12" Foreground="{DynamicResource Muted}"
-                                       Text="0 screenshots" />
-                            <Ellipse Style="{StaticResource DotSeparator}" />
-                            <TextBlock x:Name="ClipCountText" FontSize="12" Foreground="{DynamicResource Muted}"
-                                       Text="0 recordings" />
-                        </StackPanel>
+                        <!-- Counts, or the selection and what can be done with it. The
+                             row keeps its height either way, so the gallery does not jump. -->
+                        <Grid MinHeight="30">
+                            <StackPanel x:Name="CountsRow" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock x:Name="ShotCountText" FontSize="12" Foreground="{DynamicResource Muted}"
+                                           Text="0 screenshots" />
+                                <Ellipse Style="{StaticResource DotSeparator}" />
+                                <TextBlock x:Name="ClipCountText" FontSize="12" Foreground="{DynamicResource Muted}"
+                                           Text="0 recordings" />
+                                <TextBlock Margin="14,0,0,0" FontSize="11" Opacity="0.75"
+                                           Foreground="{DynamicResource Muted}"
+                                           Text="Ctrl+click or Shift+click to select several" />
+                            </StackPanel>
+                            <StackPanel x:Name="SelectionBar" Orientation="Horizontal" VerticalAlignment="Center"
+                                        Visibility="Collapsed">
+                                <TextBlock x:Name="SelectionText" Margin="0,0,12,0" VerticalAlignment="Center"
+                                           FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Text}" />
+                                <Button x:Name="SaveSelectedButton" Padding="10,3" Content="Save selected"
+                                        ToolTip="Saves only the selected items, with the current export settings. Steps are numbered from 1."
+                                        Click="SaveSelected_Click" />
+                                <Button x:Name="DeleteSelectedButton" Margin="8,0,0,0" Padding="10,3"
+                                        Style="{StaticResource DangerButton}" Content="Delete selected"
+                                        ToolTip="Ctrl+Z brings them back (Delete)" Click="DeleteSelected_Click" />
+                                <Button x:Name="SelectAllButton" Margin="8,0,0,0" Padding="10,3" Content="Select all"
+                                        ToolTip="Ctrl+A" Click="SelectAll_Click" />
+                                <Button Margin="8,0,0,0" Padding="10,3" Content="Clear"
+                                        ToolTip="Ends selecting (Esc)" Click="ClearSelection_Click" />
+                            </StackPanel>
+                        </Grid>
                         </StackPanel>
                     </Border>
 
@@ -322,7 +354,7 @@
                                             </Grid.RowDefinitions>
                                             <Border Grid.Row="0" CornerRadius="9,9,0,0" Cursor="Hand"
                                                     Background="{DynamicResource CanvasBg}"
-                                                    ToolTip="Click to open. Drag to change the order."
+                                                    ToolTip="Click to open. Drag to change the order. Ctrl+click to select."
                                                     MouseLeftButtonUp="Card_Open">
                                                 <Grid>
                                                     <Image Source="{Binding Thumb}" Stretch="Uniform" Margin="1"
@@ -333,6 +365,22 @@
                                                             Visibility="Collapsed">
                                                         <TextBlock FontSize="11" Foreground="White"
                                                                    Text="{Binding Badge}" />
+                                                    </Border>
+                                                    <!-- Marks a screenshot that has a note. Hovering shows it. -->
+                                                    <Border x:Name="NoteBadge" Margin="6,0,0,6" Padding="6,1"
+                                                            HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                                                            CornerRadius="4" Background="#B8000000"
+                                                            ToolTip="{Binding Note}" Visibility="Collapsed">
+                                                        <TextBlock FontSize="11" Foreground="White" Text="Note" />
+                                                    </Border>
+                                                    <!-- Tick box for selecting several items. -->
+                                                    <Border x:Name="SelectBox" Margin="0,5,5,0" Padding="9,3,0,5"
+                                                            HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                            CornerRadius="5" Background="#B8000000"
+                                                            Visibility="Collapsed">
+                                                        <CheckBox Padding="0" Focusable="False" ToolTip="Select"
+                                                                  IsChecked="{Binding IsSelected, Mode=OneWay}"
+                                                                  Click="Card_Select" />
                                                     </Border>
                                                     <!-- Page number in the exported document. -->
                                                     <Border x:Name="OrderBadge" Margin="6,6,0,0" Padding="6,1"
@@ -360,6 +408,10 @@
                                                         Background="Transparent" FontSize="12" Content="Delete"
                                                         Foreground="{DynamicResource Muted}" Click="Card_Delete" />
                                             </Border>
+                                            <!-- Frames a selected card. -->
+                                            <Border x:Name="SelectedMark" Grid.RowSpan="3" CornerRadius="9"
+                                                    BorderThickness="2" BorderBrush="{DynamicResource Accent}"
+                                                    Visibility="Collapsed" IsHitTestVisible="False" />
                                             <!-- Shown for a moment on a card that was just moved. -->
                                             <Border x:Name="MovedMark" Grid.RowSpan="3" CornerRadius="9"
                                                     BorderThickness="2" BorderBrush="{DynamicResource Accent}"
@@ -383,6 +435,15 @@
                                         <DataTrigger Binding="{Binding HasOrder}" Value="True">
                                             <Setter TargetName="OrderBadge" Property="Visibility" Value="Visible" />
                                         </DataTrigger>
+                                        <DataTrigger Binding="{Binding HasNote}" Value="True">
+                                            <Setter TargetName="NoteBadge" Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding SelectionActive}" Value="True">
+                                            <Setter TargetName="SelectBox" Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                            <Setter TargetName="SelectedMark" Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
                                         <DataTrigger Binding="{Binding IsDragging}" Value="True">
                                             <Setter TargetName="Card" Property="Opacity" Value="0.3" />
                                         </DataTrigger>
@@ -398,6 +459,7 @@
                                         <Trigger SourceName="Card" Property="IsMouseOver" Value="True">
                                             <Setter TargetName="Card" Property="BorderBrush"
                                                     Value="{DynamicResource Accent}" />
+                                            <Setter TargetName="SelectBox" Property="Visibility" Value="Visible" />
                                         </Trigger>
                                         <Trigger SourceName="DeleteButton" Property="IsMouseOver" Value="True">
                                             <Setter TargetName="DeleteButton" Property="Foreground"

@@ -1,5 +1,28 @@
 # Changelog
 
+## 4.0.0
+
+- Notes: every screenshot can carry a note, written in the field under the image in the
+  editor. The note is kept with the session as soon as the field is left, separately from
+  Save changes. A card with a note shows a Note mark, and hovering over it shows the text.
+- The document can print, under each screenshot, its step number with the note ("Print
+  notes under screenshots", on by default) and when it was taken ("Print the capture date
+  and time", off by default). The time includes the offset from UTC. The screenshot is
+  made smaller as much as the text needs, so both stay on one page. A page with nothing to
+  print looks as before.
+- Notes are limited to 500 characters and print on at most 12 lines.
+- Several items can be selected in the gallery: Ctrl+click adds or removes one, Shift+click
+  selects a range, Ctrl+A selects everything, Esc ends selecting. While anything is
+  selected, a click on a card selects it instead of opening it. Each card also has a tick
+  box that appears on hover.
+- The selection can be deleted in one step, which Ctrl+Z undoes as a whole, or saved on its
+  own with "Save selected". Steps in such a document are numbered from 1 and the default
+  file name ends in "- selected". Saving a selection does not count as saving the session.
+- Sessions from earlier versions keep working. The capture time of their screenshots is
+  read from the file names.
+- The PDF title keeps characters beyond plain ASCII, such as Polish letters, instead of
+  replacing them with question marks.
+
 ## 3.0.3
 
 - While recording, a see-through badge in the corner of the recorded area shows that the

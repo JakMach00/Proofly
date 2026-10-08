@@ -10,6 +10,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Navigation and saving -->
@@ -218,5 +219,34 @@
                 </Grid>
             </Canvas>
         </Grid>
+        <!-- The note printed under this screenshot in the document. It is kept
+             with the session as soon as the field is left, apart from the
+             image changes, which need Save changes. -->
+        <Border Grid.Row="4" Padding="14,8" Background="{DynamicResource Panel}"
+                BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Margin="0,8,10,0" VerticalAlignment="Top" FontSize="12"
+                           Foreground="{DynamicResource Muted}" Text="Note" />
+                <Grid Grid.Column="1">
+                    <TextBox x:Name="NoteBox" MinHeight="34" MaxHeight="82" AcceptsReturn="True" AcceptsTab="False"
+                             TextWrapping="Wrap" VerticalContentAlignment="Top"
+                             VerticalScrollBarVisibility="Auto" MaxLength="500"
+                             ToolTip="Printed under this screenshot in the document. Saved on its own, without Save changes."
+                             TextChanged="NoteBox_TextChanged" PreviewKeyDown="NoteBox_PreviewKeyDown"
+                             LostKeyboardFocus="NoteBox_LostFocus" />
+                    <TextBlock x:Name="NotePlaceholder" Margin="9,8,0,0" VerticalAlignment="Top"
+                               IsHitTestVisible="False" FontSize="13" Opacity="0.7"
+                               Foreground="{DynamicResource Muted}"
+                               Text="What this step shows, for example: Submit clicked, confirmation shown" />
+                </Grid>
+                <TextBlock x:Name="NoteCountText" Grid.Column="2" Margin="10,9,0,0" VerticalAlignment="Top"
+                           Style="{StaticResource MonoText}" FontSize="11" Text="0 / 500" />
+            </Grid>
+        </Border>
     </Grid>
 </UserControl>

@@ -29,6 +29,9 @@ namespace Proofly.Models
         private int _dropHint;
         private bool _isDragging;
         private bool _isHighlighted;
+        private bool _isSelected;
+        private bool _selectionActive;
+        private string _note = "";
 
         public Shot()
         {
@@ -46,6 +49,55 @@ namespace Proofly.Models
         public string ThumbPath { get; set; }
 
         public bool HasAudio { get; set; }
+
+        /// <summary>When the screenshot was taken or pasted, if known.</summary>
+        public DateTime? Captured { get; set; }
+
+        /// <summary>Text printed under the screenshot in the document. Empty when there is none.</summary>
+        public string Note
+        {
+            get { return _note; }
+            set
+            {
+                string clean = value ?? "";
+                if (_note == clean) return;
+                _note = clean;
+                Raise("Note");
+                Raise("HasNote");
+            }
+        }
+
+        public bool HasNote
+        {
+            get { return !string.IsNullOrWhiteSpace(_note); }
+        }
+
+        /// <summary>Picked in the gallery for a group action.</summary>
+        public bool IsSelected
+        {
+            get { return _isSelected; }
+            set
+            {
+                if (_isSelected == value) return;
+                _isSelected = value;
+                Raise("IsSelected");
+            }
+        }
+
+        /// <summary>
+        /// True on every card while anything is selected, so all of them show
+        /// their tick box and a click selects instead of opening.
+        /// </summary>
+        public bool SelectionActive
+        {
+            get { return _selectionActive; }
+            set
+            {
+                if (_selectionActive == value) return;
+                _selectionActive = value;
+                Raise("SelectionActive");
+            }
+        }
 
         public bool IsVideo
         {

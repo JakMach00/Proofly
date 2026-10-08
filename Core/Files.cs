@@ -17,6 +17,36 @@ namespace Proofly.Core
             return moment.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
         }
 
+        /// <summary>
+        /// Reads the time back out of a name made with <see cref="Stamp(DateTime)"/>,
+        /// such as screenshot_20261008_120133.png. Sessions from before 4.0.0
+        /// did not store the capture time, but their file names carry it.
+        /// </summary>
+        public static DateTime? ParseStamp(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return null;
+            for (int i = 0; i + 15 <= name.Length; i++)
+            {
+                if (name[i + 8] != '_') continue;
+                DateTime moment;
+                if (DateTime.TryParseExact(name.Substring(i, 15), "yyyyMMdd_HHmmss", CultureInfo.InvariantCulture,
+                        DateTimeStyles.AssumeLocal, out moment))
+                    return moment;
+            }
+            return null;
+        }
+
+        /// <summary>A capture time as printed in the document, with the offset from UTC so readers elsewhere can place it.</summary>
+        public static string FormatCaptureTime(DateTime moment)
+        {
+            TimeSpan offset = TimeZoneInfo.Local.GetUtcOffset(moment);
+            string sign = offset < TimeSpan.Zero ? "-" : "+";
+            TimeSpan size = offset.Duration();
+            return moment.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) +
+                   " (UTC" + sign + size.Hours.ToString("00", CultureInfo.InvariantCulture) + ":" +
+                   size.Minutes.ToString("00", CultureInfo.InvariantCulture) + ")";
+        }
+
         /// <summary>Adds a counter to the name rather than overwriting an existing file.</summary>
         public static string UniquePath(string candidate)
         {

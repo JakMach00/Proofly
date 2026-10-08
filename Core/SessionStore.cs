@@ -29,6 +29,12 @@ namespace Proofly.Core
         public long Size { get; set; }
         public long DurationMs { get; set; }
         public bool HasAudio { get; set; }
+
+        /// <summary>When the screenshot was taken or pasted. Missing in sessions from before 4.0.0.</summary>
+        public DateTime? Captured { get; set; }
+
+        /// <summary>Text printed under the screenshot in the document.</summary>
+        public string Note { get; set; } = "";
     }
 
     /// <summary>

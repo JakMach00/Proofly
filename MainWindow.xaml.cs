@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -95,6 +96,7 @@ namespace Proofly
             public string Path;
             public int Width;
             public int Height;
+            public PageCaption Caption;
         }
 
         private readonly ObservableCollection<Shot> _shots = new ObservableCollection<Shot>();
@@ -103,6 +105,9 @@ namespace Proofly
         private SessionData _session;
         private string _sessionListSignature = "";
         private Shot _pressed;
+
+        /// <summary>Where a Shift+click range starts: the card clicked last.</summary>
+        private Shot _anchor;
         private Point _pressPoint;
         private readonly List<TrashEntry> _trash = new List<TrashEntry>();
         private readonly DispatcherTimer _recordingTimer;
@@ -153,6 +158,7 @@ namespace Proofly
                 _editing = null;
             };
             Editor.NavigateRequested += NavigateEditor;
+            Editor.NoteChanged += delegate { SaveSession(); };
 
             Player.CloseRequested += delegate { Player.Hide(); };
 
@@ -229,6 +235,8 @@ namespace Proofly
             NewSessionCheck.IsChecked = Settings.NewSessionAfterExport;
             FormatCombo.SelectedItem = FormatOptions.FirstOrDefault(o => o.Key == Settings.ExportFormat) ?? FormatOptions[0];
             CompressCheck.IsChecked = Settings.CompressPdf;
+            NotesCheck.IsChecked = Settings.ExportNotes;
+            TimeCheck.IsChecked = Settings.ExportCaptureTime;
             FolderCheck.IsChecked = Settings.UseSaveDir;
             AutostartCheck.IsChecked = Autostart.IsEnabled();
 
@@ -363,6 +371,21 @@ namespace Proofly
             {
                 e.Handled = true;
                 Run(PasteAsync());
+            }
+            else if (ctrl && e.Key == Key.A)
+            {
+                e.Handled = true;
+                SelectAll();
+            }
+            else if (e.Key == Key.Escape && SelectedShots.Count > 0)
+            {
+                e.Handled = true;
+                ClearSelection();
+            }
+            else if (e.Key == Key.Delete && SelectedShots.Count > 0)
+            {
+                e.Handled = true;
+                DeleteSelected();
             }
         }
 
@@ -528,6 +551,7 @@ namespace Proofly
             RenameSessionButton.IsEnabled = sessionFree && _session != null;
             DeleteSessionButton.IsEnabled = sessionFree && _session != null;
             RefreshSessionList();
+            UpdateSelection();
         }
 
         /// <summary>The slow blink of the recording indicators.</summary>
@@ -692,8 +716,9 @@ namespace Proofly
             SessionData session = _session;
             if (session == null) throw new InvalidOperationException("There is no session to store the screenshot in.");
 
-            var shot = new Shot { Kind = ShotKind.Image };
-            string stamp = Files.Stamp();
+            DateTime now = DateTime.Now;
+            var shot = new Shot { Kind = ShotKind.Image, Captured = now };
+            string stamp = Files.Stamp(now);
             string stem = "shot_" + stamp + "_" + shot.Id.Substring(0, 6);
             shot.Name = "screenshot_" + stamp + ".png";
             shot.FilePath = session.PathOf(stem + ".png");
@@ -1139,12 +1164,16 @@ namespace Proofly
                     Size = item.Size,
                     DurationMs = item.DurationMs,
                     HasAudio = item.HasAudio,
+                    Captured = item.Captured ?? Files.ParseStamp(item.Name),
+                    Note = item.Note ?? "",
                 };
                 shot.Thumb = Bitmaps.LoadThumb(shot.ThumbPath) ?? RebuildThumb(shot);
                 _shots.Add(shot);
             }
 
             _session = session;
+            _anchor = null;
+            UpdateSelection();
             Renumber();
             Settings.LastSession = Path.GetFileName(session.Folder);
             Settings.Save();
@@ -1186,6 +1215,8 @@ namespace Proofly
                     Size = shot.Size,
                     DurationMs = shot.DurationMs,
                     HasAudio = shot.HasAudio,
+                    Captured = shot.Captured,
+                    Note = shot.IsVideo ? "" : (shot.Note ?? ""),
                 }).ToList();
                 SessionStore.Save(_session);
             }
@@ -1547,8 +1578,11 @@ namespace Proofly
             DropTrash();
             _trash.Add(new TrashEntry { Shot = shot, Index = index });
             _shots.RemoveAt(index);
+            shot.IsSelected = false;
+            if (_anchor == shot) _anchor = null;
             Renumber();
             SaveSession();
+            UpdateSelection();
             SetStatus("Deleted. Ctrl+Z restores it.");
             UpdateUi();
         }
@@ -1561,6 +1595,7 @@ namespace Proofly
             _trash.Clear();
             Renumber();
             SaveSession();
+            UpdateSelection();
             SetStatus("Restored.");
             UpdateUi();
         }
@@ -1568,17 +1603,170 @@ namespace Proofly
         private void DeleteAll()
         {
             DropTrash();
-            for (int i = 0; i < _shots.Count; i++) _trash.Add(new TrashEntry { Shot = _shots[i], Index = i });
+            for (int i = 0; i < _shots.Count; i++)
+            {
+                _shots[i].IsSelected = false;
+                _trash.Add(new TrashEntry { Shot = _shots[i], Index = i });
+            }
             _shots.Clear();
+            _anchor = null;
             SaveSession();
+            UpdateSelection();
             SetStatus("Session cleared. Ctrl+Z restores it.");
             UpdateUi();
         }
 
+        /// <summary>
+        /// A click opens the screenshot or recording. Ctrl+click and Shift+click
+        /// select instead, and while anything is selected every click does.
+        /// </summary>
         private void Card_Open(object sender, MouseButtonEventArgs e)
         {
             var element = sender as FrameworkElement;
-            if (element != null) OpenShot(element.DataContext as Shot);
+            var shot = element == null ? null : element.DataContext as Shot;
+            if (shot == null) return;
+            ModifierKeys modifiers = Keyboard.Modifiers;
+            if ((modifiers & ModifierKeys.Shift) != 0 && _anchor != null && _shots.Contains(_anchor))
+            {
+                SelectRange(_anchor, shot, (modifiers & ModifierKeys.Control) != 0);
+                return;
+            }
+            if ((modifiers & ModifierKeys.Control) != 0 || (modifiers & ModifierKeys.Shift) != 0 || SelectedShots.Count > 0)
+            {
+                ToggleSelected(shot);
+                return;
+            }
+            OpenShot(shot);
+        }
+
+        private void Card_Select(object sender, RoutedEventArgs e)
+        {
+            var element = sender as FrameworkElement;
+            var shot = element == null ? null : element.DataContext as Shot;
+            if (shot == null) return;
+            if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0 && _anchor != null && _shots.Contains(_anchor))
+            {
+                SelectRange(_anchor, shot, true);
+                return;
+            }
+            ToggleSelected(shot);
+        }
+
+        // ------------------------------------------------------------------
+        // Selection
+        // ------------------------------------------------------------------
+
+        private List<Shot> SelectedShots
+        {
+            get { return _shots.Where(s => s.IsSelected).ToList(); }
+        }
+
+        private void ToggleSelected(Shot shot)
+        {
+            shot.IsSelected = !shot.IsSelected;
+            _anchor = shot;
+            UpdateSelection();
+        }
+
+        /// <summary>Selects every card between two, in gallery order. Without <paramref name="add"/> the rest is cleared.</summary>
+        private void SelectRange(Shot from, Shot to, bool add)
+        {
+            int a = _shots.IndexOf(from);
+            int b = _shots.IndexOf(to);
+            if (a < 0 || b < 0) return;
+            int first = Math.Min(a, b);
+            int last = Math.Max(a, b);
+            for (int i = 0; i < _shots.Count; i++)
+            {
+                bool inRange = i >= first && i <= last;
+                if (inRange) _shots[i].IsSelected = true;
+                else if (!add) _shots[i].IsSelected = false;
+            }
+            UpdateSelection();
+        }
+
+        private void SelectAll()
+        {
+            if (_shots.Count == 0) return;
+            foreach (Shot shot in _shots) shot.IsSelected = true;
+            UpdateSelection();
+        }
+
+        private void ClearSelection()
+        {
+            foreach (Shot shot in _shots) shot.IsSelected = false;
+            _anchor = null;
+            UpdateSelection();
+        }
+
+        /// <summary>Shows the selection bar and switches every card into selecting while anything is selected.</summary>
+        private void UpdateSelection()
+        {
+            List<Shot> selected = SelectedShots;
+            bool active = selected.Count > 0;
+            foreach (Shot shot in _shots) shot.SelectionActive = active;
+
+            CountsRow.Visibility = active ? Visibility.Collapsed : Visibility.Visible;
+            SelectionBar.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
+            if (!active) return;
+
+            int images = selected.Count(s => !s.IsVideo);
+            int videos = selected.Count - images;
+            SelectionText.Text = selected.Count + " selected" +
+                                 (images > 0 && videos > 0 ? " (" + images + " screenshot(s), " + videos + " recording(s))" : "");
+            SelectAllButton.IsEnabled = selected.Count < _shots.Count;
+            SaveSelectedButton.IsEnabled = !_busy && !IsRecording;
+            DeleteSelectedButton.IsEnabled = !_busy;
+        }
+
+        /// <summary>Deletes the selected items as one step, so Ctrl+Z brings all of them back.</summary>
+        private void DeleteSelected()
+        {
+            if (_busy) return;
+            List<Shot> doomed = SelectedShots;
+            if (doomed.Count == 0) return;
+            if (Player.IsOpen) Player.Hide();
+            DropTrash();
+            foreach (Shot shot in doomed)
+            {
+                shot.IsSelected = false;
+                _trash.Add(new TrashEntry { Shot = shot, Index = _shots.IndexOf(shot) });
+            }
+            foreach (Shot shot in doomed) _shots.Remove(shot);
+            _anchor = null;
+            Renumber();
+            SaveSession();
+            UpdateSelection();
+            SetStatus(doomed.Count == 1 ? "Deleted. Ctrl+Z restores it." : doomed.Count + " items deleted. Ctrl+Z restores them.");
+            UpdateUi();
+        }
+
+        private void SaveSelected()
+        {
+            List<Shot> selected = SelectedShots;
+            if (selected.Count == 0) return;
+            if (selected.All(s => s.IsVideo)) Run(ExportVideosAsync(selected, false));
+            else Run(ExportAllAsync(selected));
+        }
+
+        private void SaveSelected_Click(object sender, RoutedEventArgs e)
+        {
+            SaveSelected();
+        }
+
+        private void DeleteSelected_Click(object sender, RoutedEventArgs e)
+        {
+            DeleteSelected();
+        }
+
+        private void SelectAll_Click(object sender, RoutedEventArgs e)
+        {
+            SelectAll();
+        }
+
+        private void ClearSelection_Click(object sender, RoutedEventArgs e)
+        {
+            ClearSelection();
         }
 
         private void Card_Delete(object sender, RoutedEventArgs e)
@@ -1641,6 +1829,7 @@ namespace Proofly
                                 Height = page.Height,
                                 IsJpeg = compress,
                                 Data = compress ? Bitmaps.EncodeJpeg(Bitmaps.Decode(png), 85) : png,
+                                Caption = page.Caption,
                             };
                         },
                         title);
@@ -1659,16 +1848,35 @@ namespace Proofly
                             Height = image.PixelHeight,
                             IsJpeg = compress,
                             Data = compress ? Bitmaps.EncodeJpeg(image, 85) : Bitmaps.ToRgb24(image),
+                            Caption = pages[index].Caption,
                         };
                     },
                     title);
             }
         }
 
+        /// <summary>
+        /// The text under a page: "Step n" with the capture time and the note,
+        /// as far as the export options ask for them. Null when there is nothing
+        /// to print, which leaves the page to the screenshot alone.
+        /// </summary>
+        private static PageCaption MakeCaption(Shot shot, int step, bool notes, bool times)
+        {
+            string note = notes ? CaptionText.Clean(shot.Note) : "";
+            string detail = times && shot.Captured.HasValue ? "Captured " + Files.FormatCaptureTime(shot.Captured.Value) : "";
+            if (note.Length == 0 && detail.Length == 0) return null;
+            return new PageCaption
+            {
+                Heading = "Step " + step.ToString(CultureInfo.InvariantCulture),
+                Detail = detail,
+                Note = note,
+            };
+        }
+
         private void RunExport()
         {
-            if (ImageCount == 0) Run(ExportVideosAsync(true));
-            else Run(ExportAllAsync());
+            if (ImageCount == 0) Run(ExportVideosAsync(null, true));
+            else Run(ExportAllAsync(null));
         }
 
         /// <summary>
@@ -1686,10 +1894,15 @@ namespace Proofly
             return StartNewSession() ? " \"" + saved + "\" is kept in the session list, a new session is open." : "";
         }
 
-        /// <summary>Writes the document and every recording into one folder.</summary>
-        private async Task ExportAllAsync()
+        /// <summary>
+        /// Writes the document and the recordings into one folder: everything in
+        /// the session, or only <paramref name="selection"/> when it is given.
+        /// </summary>
+        private async Task ExportAllAsync(List<Shot> selection)
         {
-            if (_shots.Count == 0)
+            bool partial = selection != null;
+            List<Shot> items = partial ? _shots.Where(selection.Contains).ToList() : _shots.ToList();
+            if (items.Count == 0)
             {
                 SetStatus("There is nothing to export.");
                 return;
@@ -1702,12 +1915,14 @@ namespace Proofly
             SetBusy(true);
             try
             {
-                List<Shot> images = Images;
-                List<Shot> videos = _shots.Where(s => s.IsVideo).ToList();
+                List<Shot> images = items.Where(s => !s.IsVideo).ToList();
+                List<Shot> videos = items.Where(s => s.IsVideo).ToList();
                 bool word = Settings.ExportFormat == "docx";
                 string extension = word ? ".docx" : ".pdf";
                 string sessionName = _session == null ? "documentation" : DisplayName(_session);
-                string defaultName = SessionStore.SafeFileName(sessionName) + extension;
+                // A part of a session gets its own name, so it is never taken
+                // for the full document.
+                string defaultName = SessionStore.SafeFileName(partial ? sessionName + " - selected" : sessionName) + extension;
 
                 // A configured folder skips the dialog, but only while it is
                 // still usable.
@@ -1741,8 +1956,17 @@ namespace Proofly
                 string dir = Path.GetDirectoryName(documentPath);
                 string stem = Path.GetFileNameWithoutExtension(documentPath);
                 bool compress = Settings.CompressPdf;
+                bool notes = Settings.ExportNotes;
+                bool times = Settings.ExportCaptureTime;
+                // Steps are counted within this document, so a selection starts at 1 too.
                 List<PageSource> pages = images
-                    .Select(s => new PageSource { Path = s.FilePath, Width = s.Width, Height = s.Height })
+                    .Select((s, i) => new PageSource
+                    {
+                        Path = s.FilePath,
+                        Width = s.Width,
+                        Height = s.Height,
+                        Caption = MakeCaption(s, i + 1, notes, times),
+                    })
                     .ToList();
                 if (pages.Count > 0)
                     await Task.Run(() => WriteDocument(documentPath, pages, compress, sessionName, word));
@@ -1759,9 +1983,10 @@ namespace Proofly
                 }
 
                 _lastDir = dir;
-                string note = FinishExport();
+                // Saving part of a session does not count as saving the session.
+                string note = partial ? "" : FinishExport();
                 SetStatus(
-                    "Saved: " + documentPath +
+                    (partial ? "Saved the selection: " : "Saved: ") + documentPath +
                     (videoPaths.Count > 0 ? " and " + videoPaths.Count + " recording(s)." : ".") +
                     (Settings.UseSaveDir && folder == null ? " The chosen folder was unavailable, so the dialog was used." : "") +
                     note);
@@ -1781,9 +2006,9 @@ namespace Proofly
         /// <paramref name="wholeSession"/> the session holds nothing else, so
         /// this counts as saving it.
         /// </summary>
-        private async Task ExportVideosAsync(bool wholeSession)
+        private async Task ExportVideosAsync(List<Shot> selection, bool wholeSession)
         {
-            List<Shot> videos = _shots.Where(s => s.IsVideo).ToList();
+            List<Shot> videos = _shots.Where(s => s.IsVideo && (selection == null || selection.Contains(s))).ToList();
             if (videos.Count == 0)
             {
                 SetStatus("There are no recordings to export.");
@@ -1993,6 +2218,18 @@ namespace Proofly
             }));
         }
 
+        private void NotesCheck_Click(object sender, RoutedEventArgs e)
+        {
+            Settings.ExportNotes = NotesCheck.IsChecked == true;
+            Settings.Save();
+        }
+
+        private void TimeCheck_Click(object sender, RoutedEventArgs e)
+        {
+            Settings.ExportCaptureTime = TimeCheck.IsChecked == true;
+            Settings.Save();
+        }
+
         private void CompressCheck_Click(object sender, RoutedEventArgs e)
         {
             Settings.CompressPdf = CompressCheck.IsChecked == true;
@@ -2106,7 +2343,7 @@ namespace Proofly
 
         private void ExportVideos_Click(object sender, RoutedEventArgs e)
         {
-            Run(ExportVideosAsync(false));
+            Run(ExportVideosAsync(null, false));
         }
 
         private void OpenFolder_Click(object sender, RoutedEventArgs e)

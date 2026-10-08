@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.IO.Compression;
@@ -13,11 +14,14 @@ namespace Proofly.Core
         public int Height;
         public byte[] Data;
         public bool IsJpeg;
+
+        /// <summary>Text printed under the image. Null leaves the page to the image alone.</summary>
+        public PageCaption Caption;
     }
 
     /// <summary>
-    /// Writes a Word document with one A4 page per image and nothing else on
-    /// it, each page turned to suit its image. A .docx file is a zip archive of
+    /// Writes a Word document with one A4 page per image, with an optional
+    /// caption under it, each page turned to suit its image. A .docx file is a zip archive of
     /// a few XML parts, which is simple enough to write without a library.
     /// </summary>
     public static class DocxWriter
@@ -32,6 +36,9 @@ namespace Proofly.Core
         private const double ParagraphAllowance = 24;
 
         private const double EmuPerPoint = 12700;
+
+        /// <summary>Stands for the section break while paragraphs are put together. Captions cannot contain it.</summary>
+        private const string SectionMark = "\u0001";
         private const double TwipsPerPoint = 20;
 
         public static void Write(Stream output, int imageCount, Func<int, DocxImage> getImage, string title)
@@ -79,7 +86,14 @@ namespace Proofly.Core
                     double pageH = landscape ? A4Short : A4Long;
                     double availW = pageW - Margin * 2;
                     double availH = pageH - Margin * 2 - ParagraphAllowance;
-                    double ratio = Math.Min(availW / image.Width, availH / image.Height);
+
+                    // Word wraps the caption itself. Arial has the widths the
+                    // layout is measured with, and one spare line covers the
+                    // difference in how the two break lines, so the caption
+                    // never gets pushed onto a page of its own.
+                    PageCaption caption = image.Caption;
+                    double reserved = caption == null ? 0 : CaptionText.ReservedHeight(caption, availW) + CaptionText.LineHeight;
+                    double ratio = Math.Min(availW / image.Width, (availH - reserved) / image.Height);
                     long cx = (long)Math.Round(image.Width * ratio * EmuPerPoint);
                     long cy = (long)Math.Round(image.Height * ratio * EmuPerPoint);
 
@@ -88,11 +102,19 @@ namespace Proofly.Core
 
                     // Every section but the last is closed by the paragraph that
                     // ends it. The last one is closed at the end of the body.
-                    body.Append("<w:p><w:pPr><w:spacing w:before=\"0\" w:after=\"0\"/><w:jc w:val=\"center\"/>");
-                    if (!last) body.Append(section);
-                    body.Append("</w:pPr><w:r>");
-                    body.Append(Drawing(number, relationId, fileName, cx, cy));
-                    body.Append("</w:r></w:p>");
+                    var paragraphs = new List<string>();
+                    paragraphs.Add("<w:pPr><w:spacing w:before=\"0\" w:after=\"0\"/><w:jc w:val=\"center\"/>" + SectionMark + "</w:pPr><w:r>" +
+                                   Drawing(number, relationId, fileName, cx, cy) + "</w:r>");
+                    if (caption != null)
+                    {
+                        double textWidth = CaptionText.TextWidth(image.Width * ratio, availW);
+                        paragraphs.AddRange(CaptionParagraphs(caption, (availW - textWidth) / 2, textWidth));
+                    }
+                    for (int p = 0; p < paragraphs.Count; p++)
+                    {
+                        bool closesSection = !last && p == paragraphs.Count - 1;
+                        body.Append("<w:p>").Append(paragraphs[p].Replace(SectionMark, closesSection ? section : "")).Append("</w:p>");
+                    }
                     if (last) body.Append(section);
                 }
 
@@ -125,6 +147,54 @@ namespace Proofly.Core
                     "<w:body>" + body + "</w:body></w:document>");
             }
             output.Flush();
+        }
+
+        /// <summary>
+        /// The caption as paragraph bodies, each with a <see cref="SectionMark"/>
+        /// where the section break goes when it is the last paragraph of its page.
+        /// The note is broken into lines the same way as in the PDF, and each
+        /// break is written out, so both documents show the same lines.
+        /// </summary>
+        private static List<string> CaptionParagraphs(PageCaption caption, double indent, double width)
+        {
+            string ind = Twips(indent);
+            // A few points of slack on the right, so Word never breaks a line
+            // that was measured to fit.
+            string rightInd = Twips(Math.Max(0, indent - 6));
+            string size = ((int)Math.Round(CaptionText.FontSize * 2)).ToString(CultureInfo.InvariantCulture);
+            string line = Twips(CaptionText.LineHeight);
+            string font = "<w:rFonts w:ascii=\"Arial\" w:hAnsi=\"Arial\" w:cs=\"Arial\"/>";
+            string Properties(double before)
+            {
+                return "<w:pPr><w:spacing w:before=\"" + Twips(before) + "\" w:after=\"0\" w:line=\"" + line +
+                       "\" w:lineRule=\"exact\"/><w:ind w:left=\"" + ind + "\" w:right=\"" + rightInd + "\"/>" + SectionMark + "</w:pPr>";
+            }
+
+            var paragraphs = new List<string>();
+            string heading = Properties(CaptionText.Gap) +
+                             "<w:r><w:rPr>" + font + "<w:b/><w:sz w:val=\"" + size + "\"/></w:rPr><w:t xml:space=\"preserve\">" +
+                             Escape(caption.Heading) + "</w:t></w:r>";
+            if (!string.IsNullOrEmpty(caption.Detail))
+            {
+                heading += "<w:r><w:rPr>" + font + "<w:color w:val=\"6B6B6B\"/><w:sz w:val=\"" + size +
+                           "\"/></w:rPr><w:t xml:space=\"preserve\">   " + Escape(caption.Detail) + "</w:t></w:r>";
+            }
+            paragraphs.Add(heading);
+
+            List<string> lines = CaptionText.Wrap(caption.Note, width);
+            if (lines.Count > 0)
+            {
+                var runs = new StringBuilder();
+                for (int i = 0; i < lines.Count; i++)
+                {
+                    runs.Append("<w:r><w:rPr>").Append(font).Append("<w:color w:val=\"1F1F1F\"/><w:sz w:val=\"").Append(size)
+                        .Append("\"/></w:rPr>");
+                    if (i > 0) runs.Append("<w:br/>");
+                    runs.Append("<w:t xml:space=\"preserve\">").Append(Escape(lines[i])).Append("</w:t></w:r>");
+                }
+                paragraphs.Add(Properties(0) + runs);
+            }
+            return paragraphs;
         }
 
         private static string SectionProperties(double pageW, double pageH, bool landscape)

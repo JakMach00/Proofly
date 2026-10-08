@@ -65,11 +65,14 @@ Organise
   still there after a restart or a crash.
 - Screenshots can be dragged into a different order. Each one shows the page number it will
   have in the document.
+- Each screenshot can have a note that is printed under it in the document.
+- Several items can be selected and then deleted or saved together.
 - A deletion can be undone with Ctrl+Z until the next deletion.
 
 Export
 
-- PDF or Word (.docx).
+- PDF or Word (.docx), the whole session or only the selected items.
+- Optionally with the step number, the note and the capture time under each screenshot.
 - Recordings are saved as separate files next to the document.
 
 Other
@@ -106,7 +109,8 @@ Starting Proofly a second time brings the running window to the front.
 3. Press the capture shortcut at each step. Use Print Screen when you only need part of the
    screen.
 4. Back in Proofly, click a screenshot to open the editor. Add arrows, step numbers or
-   text, cover anything that must not be shown with Redact, then Save changes.
+   text, cover anything that must not be shown with Redact, then Save changes. Write what
+   the step shows in the Note field under the image.
 5. Drag the screenshots into the right order if needed.
 6. Choose PDF or Word under Export and save.
 
@@ -140,6 +144,11 @@ In the main window
 | --- | --- |
 | Undo the last deletion | Ctrl+Z |
 | Paste from the clipboard | Ctrl+V |
+| Select or unselect an item | Ctrl+click |
+| Select a range of items | Shift+click |
+| Select everything | Ctrl+A |
+| Delete the selected items | Delete |
+| End selecting | Esc |
 
 In the editor
 
@@ -182,12 +191,46 @@ than one they are numbered from 1: "Session 1", "Session 2" and so on.
 Empty sessions that still have their default name are removed the next time Proofly starts,
 except the one that was open last.
 
+### Notes
+
+The editor has a Note field under the image. What you type there belongs to the screenshot
+and is stored with the session as soon as you leave the field. It does not need Save
+changes and is not affected by discarding image changes. Esc in the field leaves it without
+closing the editor. A note can be up to 500 characters long. In the gallery, a screenshot
+with a note shows a Note mark, and hovering over the mark shows the text.
+
+Recordings have no notes.
+
+### Selecting several items
+
+Ctrl+click a card to select it, Shift+click to select everything between it and the card
+clicked before, Ctrl+A to select all. Each card also shows a tick box when the pointer is
+over it. While anything is selected, a plain click selects or unselects instead of opening,
+and a bar above the gallery offers:
+
+- Save selected: saves only the selected items, with the current export settings. The
+  steps in that document are numbered from 1 and its default name ends in "- selected".
+  The session is not marked as saved and no new session is started.
+- Delete selected (or the Delete key): removes them in one step. Ctrl+Z brings all of them
+  back.
+- Select all and Clear (or Esc).
+
 ## The exported document
 
 - A4 pages, one screenshot per page, in the order shown in the gallery.
 - Each page is portrait or landscape to suit its screenshot.
-- The screenshot is scaled to fit inside a 12.7 mm (36 pt) margin and centred. Nothing else
-  is on the page: no headers, file names or timestamps.
+- The screenshot is scaled to fit inside a 12.7 mm (36 pt) margin and centred. There are no
+  headers, footers or file names.
+- With "Print notes under screenshots" (on by default), a screenshot that has a note gets
+  it printed underneath, headed "Step n". With "Print the capture date and time" (off by
+  default), the heading also says when the screenshot was taken or pasted, for example
+  `Captured 2026-10-08 12:01:33 (UTC+02:00)`. The screenshot is made smaller by as much as
+  the text needs, so both always fit on one page. A page with nothing to print shows only
+  the screenshot.
+- Notes longer than 12 printed lines are cut and end in "...". In the PDF, text is set in
+  Helvetica, which covers Western European and Polish letters. Other scripts, such as
+  Cyrillic, print as question marks in the PDF. The Word document uses Arial and shows any
+  character.
 - "Compress images in the document" stores screenshots as JPEG at quality 85, which makes
   the file much smaller at the cost of slightly softer text. Switched off, screenshots are
   stored without loss.

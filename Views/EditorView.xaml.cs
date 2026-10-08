@@ -128,6 +128,9 @@ namespace Proofly.Views
 
         public event Action CloseRequested;
 
+        /// <summary>Raised when the note of the open screenshot was changed and should be stored.</summary>
+        public event Action<Shot> NoteChanged;
+
         /// <summary>Asks for the previous (-1) or next (+1) screenshot.</summary>
         public event Action<int> NavigateRequested;
 
@@ -176,6 +179,8 @@ namespace Proofly.Views
 
         public void Open(Shot shot, int index, int total)
         {
+            // The note of the screenshot being left is kept before anything changes.
+            CommitNote();
             _shot = shot;
             _index = index;
             _total = total;
@@ -197,6 +202,7 @@ namespace Proofly.Views
             _placed = null;
             _drag = null;
             InlineHost.Visibility = Visibility.Collapsed;
+            LoadNote();
 
             Visibility = Visibility.Visible;
             Refresh();
@@ -210,6 +216,7 @@ namespace Proofly.Views
 
         public void Hide()
         {
+            CommitNote();
             Persist();
             Visibility = Visibility.Collapsed;
             _image = null;
@@ -1737,6 +1744,56 @@ namespace Proofly.Views
         private void Stage_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             if (_image != null) Refresh();
+        }
+
+        // ------------------------------------------------------------------
+        // Note
+        // ------------------------------------------------------------------
+
+        private void LoadNote()
+        {
+            NoteBox.Text = _shot == null ? "" : (_shot.Note ?? "");
+            UpdateNoteHint();
+        }
+
+        /// <summary>Stores the note on the screenshot when it differs from what is kept.</summary>
+        private void CommitNote()
+        {
+            if (_shot == null) return;
+            string text = CaptionText.Clean(NoteBox.Text);
+            if (text == (_shot.Note ?? "")) return;
+            _shot.Note = text;
+            Action<Shot> handler = NoteChanged;
+            if (handler != null) handler(_shot);
+        }
+
+        private void UpdateNoteHint()
+        {
+            int length = NoteBox.Text.Length;
+            NotePlaceholder.Visibility = length == 0 ? Visibility.Visible : Visibility.Collapsed;
+            NoteCountText.Text = length + " / " + CaptionText.MaxNoteLength;
+        }
+
+        private void NoteBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            UpdateNoteHint();
+        }
+
+        private void NoteBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            // Escape leaves the field instead of closing the editor, so a note
+            // being typed is never lost to a reflex.
+            if (e.Key == Key.Escape)
+            {
+                e.Handled = true;
+                CommitNote();
+                Focus();
+            }
+        }
+
+        private void NoteBox_LostFocus(object sender, KeyboardFocusChangedEventArgs e)
+        {
+            CommitNote();
         }
 
         private void Editor_PreviewKeyDown(object sender, KeyEventArgs e)

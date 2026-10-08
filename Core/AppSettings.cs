@@ -38,6 +38,12 @@ namespace Proofly.Core
         /// <summary>"pdf" or "docx".</summary>
         public string ExportFormat { get; set; } = "pdf";
 
+        /// <summary>Print the note of each screenshot under it in the document.</summary>
+        public bool ExportNotes { get; set; } = true;
+
+        /// <summary>Print when each screenshot was taken under it in the document.</summary>
+        public bool ExportCaptureTime { get; set; }
+
         /// <summary>Draw the mouse pointer into screenshots.</summary>
         public bool IncludeCursor { get; set; } = true;
 
