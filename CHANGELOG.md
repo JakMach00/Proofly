@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.0.3
+
+- While recording, a see-through badge in the corner of the recorded area shows that the
+  recording runs and for how long. Starting, pausing and resuming also show a large record,
+  pause or play symbol in the middle of the area for a moment. Neither appears in the
+  recording or in screenshots. They need Windows 10 version 2004 or newer and are not shown
+  on older versions.
+- Playback in the player could stop by itself after a second or two the first time a
+  recording was played. The player now opens the file before starting it and resumes
+  playback that stalls while it should be running.
+- Recordings are written at a constant frame rate, also while nothing on the screen
+  changes. This makes them play more reliably in other players as well.
+
 ## 3.0.2
 
 - The release packages now carry the Visual C++ runtime files next to the application.

@@ -188,5 +188,17 @@ namespace Proofly.Services
 
         [DllImport("dwmapi.dll")]
         public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
+        /// <summary>Shown on the screen but left out of screenshots and recordings. Windows 10 2004 and later.</summary>
+        public const uint WdaExcludeFromCapture = 0x00000011;
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
+
+        public const int MdtEffectiveDpi = 0;
+
+        [DllImport("shcore.dll")]
+        public static extern int GetDpiForMonitor(IntPtr hmonitor, int dpiType, out uint dpiX, out uint dpiY);
     }
 }

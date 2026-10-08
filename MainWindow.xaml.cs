@@ -113,6 +113,7 @@ namespace Proofly
         private TrayIcon _tray;
         private RecordingService _recorder;
         private ClickHighlighter _clicks;
+        private RecordingIndicator _indicator;
         private BitmapSource _recordingThumb;
         private Shot _editing;
         private IntPtr _handle;
@@ -271,6 +272,7 @@ namespace Proofly
             }
             if (Player.IsOpen) Player.Hide();
             if (_clicks != null) _clicks.Stop();
+            CloseIndicator();
             DropTrash();
             SaveSession();
             if (_hotkeys != null) _hotkeys.Dispose();
@@ -553,6 +555,7 @@ namespace Proofly
             string elapsed = Files.FormatDuration((long)_recorder.Elapsed.TotalMilliseconds);
             RecordStopButton.Content = "Stop " + elapsed;
             RecLiveText.Text = (_recorder.IsPaused ? "Paused " : "Recording ") + elapsed;
+            if (_indicator != null) _indicator.Update(elapsed, _recorder.IsPaused);
         }
 
         // ------------------------------------------------------------------
@@ -894,6 +897,7 @@ namespace Proofly
                         _clicks = null;
                     }
                 }
+                ShowIndicator(area);
                 if (Settings.HideOnCapture) MinimizeWindow();
 
                 string text = region.HasValue ? "Recording a region of the screen." : "Recording the whole screen.";
@@ -913,6 +917,7 @@ namespace Proofly
             try
             {
                 SetStatus("Finishing the recording...");
+                CloseIndicator();
                 _recorder.Stop();
             }
             catch (Exception error)
@@ -931,12 +936,14 @@ namespace Proofly
                 {
                     _recorder.Resume();
                     if (_clicks != null && Settings.HighlightClicks) _clicks.Start();
+                    FlashIndicator(RecordingIndicator.Symbol.Play);
                     SetStatus("Recording resumed.");
                 }
                 else
                 {
                     _recorder.Pause();
                     if (_clicks != null) _clicks.Suspend();
+                    FlashIndicator(RecordingIndicator.Symbol.Pause);
                     SetStatus("Recording paused. Nothing is recorded until you resume.");
                 }
             }
@@ -947,10 +954,57 @@ namespace Proofly
             UpdateUi();
         }
 
+        /// <summary>
+        /// The on-screen sign that a recording runs. It is left out of the
+        /// recording itself, and where Windows cannot do that it is not shown.
+        /// </summary>
+        private void ShowIndicator(Int32Rect area)
+        {
+            try
+            {
+                if (_indicator == null) _indicator = new RecordingIndicator();
+                if (_indicator.Show(area)) _indicator.Flash(RecordingIndicator.Symbol.Record);
+            }
+            catch (Exception error)
+            {
+                // The recording runs anyway, only without the sign.
+                App.LogError("Showing the recording indicator", error);
+                CloseIndicator();
+            }
+        }
+
+        private void FlashIndicator(RecordingIndicator.Symbol symbol)
+        {
+            if (_indicator == null || !IsRecording) return;
+            try
+            {
+                _indicator.Update(Files.FormatDuration((long)_recorder.Elapsed.TotalMilliseconds), _recorder.IsPaused);
+                _indicator.Flash(symbol);
+            }
+            catch (Exception error)
+            {
+                App.LogError("Updating the recording indicator", error);
+            }
+        }
+
+        private void CloseIndicator()
+        {
+            if (_indicator == null) return;
+            try
+            {
+                _indicator.Close();
+            }
+            catch (Exception)
+            {
+                // Closing a window that is already gone.
+            }
+        }
+
         private void OnRecordingCompleted(RecordingResult result)
         {
             _recordingTimer.Stop();
             if (_clicks != null) _clicks.Stop();
+            CloseIndicator();
             long size = 0;
             try
             {
@@ -998,6 +1052,7 @@ namespace Proofly
         {
             _recordingTimer.Stop();
             if (_clicks != null) _clicks.Stop();
+            CloseIndicator();
             _recordingThumb = null;
             SetStatus("The recording failed: " + (string.IsNullOrEmpty(reason) ? "unknown error" : reason));
             UpdateUi();

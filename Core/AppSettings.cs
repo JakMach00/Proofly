@@ -56,6 +56,7 @@ namespace Proofly.Core
 
         public Dictionary<string, string> Shortcuts { get; set; } = DefaultShortcuts();
 
+
         public string EditorTool { get; set; } = "arrow";
         public string EditorColor { get; set; } = "#ff3b30";
         public double EditorWidth { get; set; } = 5;
@@ -144,6 +145,7 @@ namespace Proofly.Core
             if (Shortcuts == null) Shortcuts = defaults;
             foreach (string action in Actions)
                 if (!Shortcuts.ContainsKey(action)) Shortcuts[action] = defaults[action];
+
 
             if (Quality != "low" && Quality != "medium" && Quality != "high") Quality = "medium";
             if (AudioSource != "none" && AudioSource != "mic" && AudioSource != "system" && AudioSource != "both")

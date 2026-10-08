@@ -128,7 +128,11 @@ namespace Proofly.Services
                 {
                     Bitrate = quality.Bitrate,
                     Framerate = quality.Fps,
-                    IsFixedFramerate = false,
+                    // A frame is written at every tick even when the screen
+                    // does not change. Players then see an ordinary video
+                    // instead of long gaps between frames, which some of them
+                    // treat as the end of the data or a stall.
+                    IsFixedFramerate = true,
                     Encoder = new H264VideoEncoder
                     {
                         BitrateMode = H264BitrateControlMode.CBR,

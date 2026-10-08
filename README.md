@@ -216,6 +216,11 @@ before replacing a file.
   too.
 - While a recording is paused nothing is written, so the paused part does not appear in the
   file.
+- While a recording runs, a see-through badge in the top right corner of the recorded area
+  shows REC and the elapsed time, or PAUSED. Starting, pausing and resuming also show a
+  large symbol in the middle of the area for a moment. Both are visible only on your
+  screen: Windows leaves them out of the recording and of screenshots. This needs Windows 10
+  version 2004 or newer. On older versions they are not shown. Clicks pass through them.
 - With "Hide Proofly while capturing" switched on, the window minimizes when a recording
   starts.
 - Microphone means the default Windows input device, system audio means what the default
@@ -313,7 +318,8 @@ a document library.
 Core/        PDF and Word writers, session store, settings, shortcut parsing, file naming
              (no user interface dependencies)
 Models/      Session items and annotations
-Services/    Screen capture, recording, shortcuts, tray icon, start with Windows, themes
+Services/    Screen capture, recording, recording indicator, shortcuts, tray icon, start with
+             Windows, themes
 Controls/    Gallery panel and the drawing surface of the editor
 Views/       Editor, player, shortcut settings, region overlay, dialogs
 Themes/      Colours and control styles

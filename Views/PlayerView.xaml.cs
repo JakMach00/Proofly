@@ -19,6 +19,15 @@ namespace Proofly.Views
         private bool _syncing = true;
         private double _speed = 1.0;
 
+        /// <summary>Set once the file is open and the player accepts play, pause and speed.</summary>
+        private bool _opened;
+
+        private TimeSpan _lastPosition;
+        private int _stalledTicks;
+
+        /// <summary>Checks at 200 ms, so this is about a second without progress.</summary>
+        private const int StallTicks = 5;
+
         public event Action CloseRequested;
 
         public PlayerView()
@@ -57,11 +66,16 @@ namespace Proofly.Views
             _syncing = false;
             TimeText.Text = "00:00 / " + Files.FormatDuration(shot.DurationMs);
 
+            _opened = false;
+            _stalledTicks = 0;
+            _lastPosition = TimeSpan.Zero;
             Visibility = Visibility.Visible;
-            Media.Source = new Uri(shot.FilePath);
-            Media.Play();
-            Media.SpeedRatio = _speed;
             SetPlaying(true);
+            Media.Source = new Uri(shot.FilePath);
+            // In manual mode the file only opens on a Play or Pause call. It is
+            // opened paused, and playback starts in Media_Opened, once the
+            // player is ready, instead of being sent to a player still loading.
+            Media.Pause();
             _timer.Start();
             Focus();
         }
@@ -71,6 +85,7 @@ namespace Proofly.Views
         {
             _timer.Stop();
             _playing = false;
+            _opened = false;
             Media.Stop();
             Media.Close();
             Media.Source = null;
@@ -85,6 +100,13 @@ namespace Proofly.Views
 
         private void TogglePlay()
         {
+            if (!_opened)
+            {
+                // Still loading. Media_Opened starts or holds playback as asked.
+                SetPlaying(!_playing);
+                return;
+            }
+            _stalledTicks = 0;
             if (_playing)
             {
                 Media.Pause();
@@ -109,12 +131,39 @@ namespace Proofly.Views
             _syncing = false;
             TimeText.Text = Files.FormatDuration((long)position.TotalMilliseconds) + " / " +
                             Files.FormatDuration((long)total.TotalMilliseconds);
+            RecoverFromStall(position, total);
+        }
+
+        /// <summary>
+        /// The Windows media player behind MediaElement can stop moving on its
+        /// own, for example while it waits for a file another program (such as
+        /// a virus scanner) still reads. The button then still says Pause.
+        /// When playback should run but the position has not moved for about a
+        /// second, play is issued again.
+        /// </summary>
+        private void RecoverFromStall(TimeSpan position, TimeSpan total)
+        {
+            bool nearEnd = total - position < TimeSpan.FromMilliseconds(500);
+            if (!_playing || !_opened || nearEnd || position != _lastPosition)
+            {
+                _stalledTicks = 0;
+                _lastPosition = position;
+                return;
+            }
+            if (++_stalledTicks < StallTicks) return;
+            _stalledTicks = 0;
+            Media.Pause();
+            Media.Play();
+            Media.SpeedRatio = _speed;
         }
 
         private void Media_Opened(object sender, RoutedEventArgs e)
         {
+            _opened = true;
+            _stalledTicks = 0;
             // The speed only sticks once the media is open.
             Media.SpeedRatio = _speed;
+            if (_playing) Media.Play();
             UpdateProgress();
         }
 
@@ -146,7 +195,7 @@ namespace Proofly.Views
             double value;
             if (!double.TryParse(radio.Tag as string, NumberStyles.Float, CultureInfo.InvariantCulture, out value)) value = 1.0;
             _speed = value;
-            Media.SpeedRatio = value;
+            if (_opened) Media.SpeedRatio = value;
         }
 
         private void Mute_Click(object sender, RoutedEventArgs e)
