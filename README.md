@@ -1,11 +1,12 @@
 # Proofly
 
 Proofly is a Windows desktop tool for collecting test evidence. It takes screenshots, lets
-you mark them up, records the screen, and saves the result as a PDF or Word document with
-one screenshot per page.
+you mark them up and describe them, records the screen, and saves the result as a PDF or
+Word document with one screenshot per page.
 
 It is built for manual testing: capture each step with a shortcut while you work in the
-application under test, annotate what matters, and export one document at the end.
+application under test, annotate what matters, add a note to each step, and export one
+document at the end.
 
 ## Contents
 
@@ -15,6 +16,8 @@ application under test, annotate what matters, and export one document at the en
 - [A typical session](#a-typical-session)
 - [Keyboard shortcuts](#keyboard-shortcuts)
 - [Sessions](#sessions)
+  - [Notes](#notes)
+  - [Selecting several items](#selecting-several-items)
 - [The exported document](#the-exported-document)
 - [Recording](#recording)
 - [Data and privacy](#data-and-privacy)
@@ -47,6 +50,7 @@ Annotate
   apply it. Nothing is cut until then.
 - Six colours, adjustable thickness, five fonts, optional text outline.
 - Every change can be undone, up to 50 steps back, including deletions, moves and crops.
+- A note per screenshot, typed under the image, for the document.
 - Zoom up to 600% for precise work on large screenshots.
 - Copy the current image to the clipboard, or save it as a PNG or JPG file, at any time.
 
@@ -56,6 +60,8 @@ Record
 - Pause and resume.
 - Audio: none, microphone, system audio, or both.
 - Optional highlighting of mouse clicks.
+- An on-screen sign while recording, with the elapsed time, that does not appear in the
+  video.
 - Recordings play inside Proofly, with a speed preview from 1x to 2x and a mute switch.
   This affects playback only, the file is not changed.
 
@@ -90,6 +96,8 @@ Other
   include them and relies on the Visual C++ Redistributable 2015-2022 being installed.
 - Media Foundation, which is part of Windows. The N editions of Windows need the Media
   Feature Pack for recording.
+- Windows 10 version 2004 or newer for the on-screen recording sign. On older versions
+  recording works, but the sign is not shown.
 
 ## Running it
 
@@ -164,6 +172,7 @@ In the editor
 | Fit the whole screenshot | Ctrl+0 |
 | Apply the crop frame, or close it without cropping | Enter, Esc |
 | Close the editor (asks first when there are unsaved changes) | Esc |
+| Leave the Note field without closing the editor | Esc, while typing a note |
 
 When zoomed in, the mouse wheel scrolls the image and Shift with the wheel scrolls sideways.
 To drag the image around, hold the left mouse button on an empty spot with the Select tool,
@@ -234,7 +243,8 @@ and a bar above the gallery offers:
 - "Compress images in the document" stores screenshots as JPEG at quality 85, which makes
   the file much smaller at the cost of slightly softer text. Switched off, screenshots are
   stored without loss.
-- The document is named after the session, for example `Login tests.pdf`.
+- The document is named after the session, for example `Login tests.pdf`. A document saved
+  from a selection is named `Login tests - selected.pdf`.
 - Recordings are copied next to the document as `<document name>_recording_01.mp4`,
   `_02` and so on.
 
@@ -253,6 +263,9 @@ before replacing a file.
 
 - Low is enough to document a defect. High keeps small text sharp.
 - The mouse pointer is always visible in recordings.
+- Frames are written at the full rate of the quality setting even while nothing on the
+  screen changes. Such recordings play reliably in other players too, and the size of the
+  file depends on its length, not on how much happened on the screen.
 - With "Highlight clicks in recordings" a ring is shown around the pointer while a mouse
   button is held, yellow for the left button and red for the right, and fades out after the
   button is released. The ring is drawn on the screen during the recording, so you see it
@@ -295,6 +308,13 @@ Points to be aware of
   the block can still be moved or removed.
 - Saving changes in the editor merges the annotations into the screenshot. After that they
   can no longer be edited separately.
+- Notes are stored as plain text in `session.json` in the session folder and are deleted
+  with the session. With "Print notes under screenshots" on, they also end up in the
+  document, so write them with the same care as anything else in the evidence.
+- The printed capture time includes the offset from UTC of the computer that took the
+  screenshot.
+- The on-screen recording sign is excluded from capture by Windows, so it never appears in
+  recordings or screenshots.
 - A region capture is copied to the Windows clipboard, and so is anything you copy from the
   editor. Other applications can read the clipboard.
 - "Start with Windows" adds one entry for the current user under
@@ -335,6 +355,10 @@ dotnet publish -c Release -o publish --self-contained true
 
 The project targets x64 only, because the recording library is native.
 
+Do not publish as a single file (`PublishSingleFile`). ScreenRecorderLib is a mixed C++/CLI
+assembly, which .NET cannot load from inside a single-file bundle, so recording fails with a
+BadImageFormatException. Publish as a folder, as above.
+
 ## Third party components
 
 | Component | Use | Licence |
@@ -354,12 +378,17 @@ a document library.
 - The executable is not code signed, so Windows may show a warning the first time it is
   started.
 - Only one recording can run at a time, and the session cannot be changed while it runs.
+- Recordings have no notes, and the document has no title page.
+- In the PDF, notes can use Western European and Polish letters only. Other scripts print
+  as question marks. The Word document has no such limit.
+- Dragging moves one card at a time, also while several are selected.
+- Publishing as a single file is not supported, see [Building from source](#building-from-source).
 
 ## Project layout
 
 ```
-Core/        PDF and Word writers, session store, settings, shortcut parsing, file naming
-             (no user interface dependencies)
+Core/        PDF and Word writers, caption layout, session store, settings, shortcut parsing,
+             file naming (no user interface dependencies)
 Models/      Session items and annotations
 Services/    Screen capture, recording, recording indicator, shortcuts, tray icon, start with
              Windows, themes
