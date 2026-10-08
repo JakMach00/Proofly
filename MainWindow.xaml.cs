@@ -129,6 +129,9 @@ namespace Proofly
         /// <summary>True only when this window hid itself in order to take a screenshot.</summary>
         private bool _hiddenByCapture;
 
+        /// <summary>True while the window is cloaked for a capture rather than hidden.</summary>
+        private bool _cloaked;
+
         /// <summary>True while the code is filling the controls, so their events are not user input.</summary>
         private bool _loading = true;
 
@@ -246,6 +249,9 @@ namespace Proofly
 
         public void ShowFromTray()
         {
+            _hiddenByCapture = false;
+            Uncloak();
+            ShowActivated = true;
             if (!IsVisible) Show();
             if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
             Activate();
@@ -261,6 +267,7 @@ namespace Proofly
             {
                 e.Cancel = true;
                 _hiddenByCapture = false;
+                Uncloak();
                 Hide();
                 if (_tray != null) _tray.ShowStillRunningNotice();
             }
@@ -663,10 +670,59 @@ namespace Proofly
                 if (own != null && !string.Equals(own.DeviceName, target.DeviceName, StringComparison.OrdinalIgnoreCase))
                     return;
             }
-            Hide();
+            // Cloaking takes the window off the screen and out of the capture
+            // while it keeps its size, maximized state, place in the window
+            // order and focus, so nothing has to be restored afterwards. Hiding
+            // is the fallback should Windows refuse.
+            if (SetCloak(true)) _cloaked = true;
+            else Hide();
             _hiddenByCapture = true;
             // Gives the compositor time to actually remove the window.
             await Task.Delay(220);
+        }
+
+        private bool SetCloak(bool on)
+        {
+            if (_handle == IntPtr.Zero) return false;
+            int value = on ? 1 : 0;
+            try
+            {
+                return Native.DwmSetWindowAttribute(_handle, Native.DwmCloak, ref value, sizeof(int)) == 0;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        private void Uncloak()
+        {
+            if (!_cloaked) return;
+            _cloaked = false;
+            SetCloak(false);
+        }
+
+        /// <summary>
+        /// Shows the hidden window without taking focus from the application
+        /// under test. WPF refuses that for a maximized window, which is then
+        /// shown the normal way.
+        /// </summary>
+        private void ShowWithoutFocus()
+        {
+            if (WindowState == WindowState.Maximized)
+            {
+                Show();
+                return;
+            }
+            ShowActivated = false;
+            try
+            {
+                Show();
+            }
+            finally
+            {
+                ShowActivated = true;
+            }
         }
 
         /// <summary>
@@ -677,9 +733,12 @@ namespace Proofly
         {
             if (!_hiddenByCapture) return;
             _hiddenByCapture = false;
-            ShowActivated = false;
-            Show();
-            ShowActivated = true;
+            if (_cloaked)
+            {
+                Uncloak();
+                return;
+            }
+            ShowWithoutFocus();
         }
 
         /// <summary>
@@ -692,14 +751,15 @@ namespace Proofly
             _hiddenByCapture = false;
             if (IsVisible)
             {
+                // A cloaked window is minimized first and uncloaked after, so it
+                // never flashes up in between.
                 WindowState = WindowState.Minimized;
+                Uncloak();
             }
             else if (wasHiddenByCapture)
             {
-                ShowActivated = false;
                 WindowState = WindowState.Minimized;
-                Show();
-                ShowActivated = true;
+                ShowWithoutFocus();
             }
         }
 

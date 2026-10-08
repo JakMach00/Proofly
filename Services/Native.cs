@@ -24,6 +24,9 @@ namespace Proofly.Services
 
         public const int DwmUseImmersiveDarkMode = 20;
 
+        /// <summary>Hides a window from the screen and from captures without changing its state, position or focus.</summary>
+        public const int DwmCloak = 13;
+
         [StructLayout(LayoutKind.Sequential)]
         public struct POINT
         {

@@ -53,9 +53,26 @@ namespace Proofly.Services
             _icon.Dispose();
         }
 
+        /// <summary>
+        /// Menu clicks arrive through the Windows Forms message loop, which would
+        /// show its own crash dialog for anything thrown here. Errors are logged
+        /// and shown in the status bar like everywhere else instead.
+        /// </summary>
         private static void Fire(Action handler)
         {
-            if (handler != null) handler();
+            if (handler == null) return;
+            try
+            {
+                handler();
+            }
+            catch (Exception error)
+            {
+                App.LogError("Tray menu", error);
+                var window = System.Windows.Application.Current == null
+                    ? null
+                    : System.Windows.Application.Current.MainWindow as MainWindow;
+                if (window != null) window.ReportError("Unexpected error: " + error.Message);
+            }
         }
     }
 }

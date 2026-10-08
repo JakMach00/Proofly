@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.1
+
+- With the window maximized and "Hide Proofly while capturing" on, the window did not
+  come back after a capture, and opening it from the tray then ended in an error dialog.
+  For a capture the window is now made invisible in place (cloaked) instead of hidden, so it
+  keeps its size, position and focus, and errors from the tray menu go to the status bar
+  and the error log.
+
 ## 4.0.0
 
 - Notes: every screenshot can carry a note, written in the field under the image in the
