@@ -230,6 +230,29 @@ namespace Proofly.Views
             get { return Visibility == Visibility.Visible; }
         }
 
+        /// <summary>
+        /// True when the open screenshot has changes that are not in the stored
+        /// file yet, a label still being typed included.
+        /// </summary>
+        public bool HasUnsavedChanges
+        {
+            get { return IsOpen && (_dirty || _editingId != null); }
+        }
+
+        /// <summary>
+        /// Takes a new place and count in the gallery without touching the
+        /// image or its annotations, for when screenshots are added while the
+        /// editor is open.
+        /// </summary>
+        public void UpdatePosition(int index, int total, string notice)
+        {
+            if (!IsOpen) return;
+            _index = index;
+            _total = total;
+            UpdateBars();
+            if (!string.IsNullOrEmpty(notice)) ShowNotice(notice);
+        }
+
         private void Persist()
         {
             AppSettings settings = App.Settings;

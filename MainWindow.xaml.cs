@@ -323,10 +323,16 @@ namespace Proofly
             get { return Editor.IsOpen || Player.IsOpen || ShortcutsPanel.IsOpen || Confirm.IsOpen; }
         }
 
+        /// <summary>
+        /// Global shortcuts work whatever is open in the window, so a screenshot
+        /// is never lost to an editor left open in the background. The editor
+        /// stays as it is, unsaved annotations included. The only view that
+        /// switches them off is the shortcut settings, which records new
+        /// combinations and needs the keys for itself.
+        /// </summary>
         private void OnShortcut(string action)
         {
-            // Global shortcuts are ignored while another view owns the window.
-            if (AnyViewOpen) return;
+            if (ShortcutsPanel.IsOpen) return;
             if (action == AppSettings.ActionCapture)
             {
                 Run(CaptureFullAsync());
@@ -346,6 +352,17 @@ namespace Proofly
             }
             else if (action == AppSettings.ActionExport)
             {
+                // The document is built from the stored screenshots. Changes
+                // still open in the editor would be missing from it, a Redact
+                // block among them, so saving waits until they are dealt with.
+                if (Editor.HasUnsavedChanges)
+                {
+                    const string reason = "Save or discard the changes in the editor before saving the document.";
+                    SetStatus(reason);
+                    bool unseen = !IsVisible || WindowState == WindowState.Minimized || !IsActive;
+                    if (unseen && _tray != null) _tray.ShowNotice("Document not saved", reason);
+                    return;
+                }
                 RunExport();
             }
         }
@@ -805,6 +822,20 @@ namespace Proofly
             Renumber();
             SaveSession();
             UpdateUi();
+            SyncEditorPosition("Screenshot " + shot.Order + " added.");
+        }
+
+        /// <summary>
+        /// Keeps the open editor's "3 / 5" and its Next button right after the
+        /// gallery changed behind it, and says what happened.
+        /// </summary>
+        private void SyncEditorPosition(string notice)
+        {
+            if (!Editor.IsOpen || _editing == null) return;
+            List<Shot> images = Images;
+            int position = images.IndexOf(_editing);
+            if (position < 0) return;
+            Editor.UpdatePosition(position, images.Count, notice);
         }
 
         /// <summary>Screenshot of the whole selected screen, or of the locked region.</summary>

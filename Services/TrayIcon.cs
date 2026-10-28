@@ -47,6 +47,12 @@ namespace Proofly.Services
                 WinForms.ToolTipIcon.Info);
         }
 
+        /// <summary>A short message for when the window is out of sight.</summary>
+        public void ShowNotice(string title, string text)
+        {
+            _icon.ShowBalloonTip(4000, title, text, WinForms.ToolTipIcon.Warning);
+        }
+
         public void Dispose()
         {
             _icon.Visible = false;

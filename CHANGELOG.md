@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.0.2
+
+- Global shortcuts now work while a screenshot is open in the editor, a recording plays in
+  the player or a dialog is open. Before, they were ignored, so an editor left open in the
+  background silently stopped every capture, and a recording could not be stopped with its
+  shortcut. The editor keeps the screenshot and its unsaved annotations as they are,
+  updates its "3 / 5" counter and shows "Screenshot 6 added."
+- The shortcut that saves the document refuses while the editor has unsaved changes,
+  because they would be missing from the document. The status bar says so, and a
+  notification from the tray icon does when the window is out of sight.
+- Shortcuts stay off only while the keyboard shortcut settings are open, since that view
+  records new combinations.
+
 ## 4.0.1
 
 - With the window maximized and "Hide Proofly while capturing" on, the window did not

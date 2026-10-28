@@ -128,8 +128,13 @@ in the session list and can be reopened at any time.
 
 ## Keyboard shortcuts
 
-Global shortcuts work while Proofly is minimized or hidden in the tray. All of them can be
-changed under Utilities, Keyboard shortcuts.
+Global shortcuts work while Proofly is minimized or hidden in the tray, and also while the
+editor, the player or a dialog is open. A screenshot taken with the editor open is added to
+the session in the background: the editor keeps the image you are working on, unsaved
+annotations included, and shows "Screenshot n added." The only exception is the shortcut
+that saves the document, which waits while the editor has unsaved changes, because they
+would be missing from the document. Shortcuts are off while the keyboard shortcut settings
+are open. All of them can be changed under Utilities, Keyboard shortcuts.
 
 | Action | Default |
 | --- | --- |

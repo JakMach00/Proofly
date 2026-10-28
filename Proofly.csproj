@@ -23,8 +23,8 @@
     <RootNamespace>Proofly</RootNamespace>
     <Product>Proofly</Product>
     <Description>Proofly</Description>
-    <Version>4.0.1</Version>
-    <InformationalVersion>4.0.1</InformationalVersion>
+    <Version>4.0.2</Version>
+    <InformationalVersion>4.0.2</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
